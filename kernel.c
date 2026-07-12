@@ -1,13 +1,16 @@
 // kernel.c
-// Custos command shell
+// Custos OS command shell
 
 #include <stdbool.h>
+
 
 char *video = (char *)0xB8000;
 
 int cursor = 0;
 
+
 bool equal(char *a, char *b);
+
 
 
 typedef struct
@@ -17,6 +20,7 @@ typedef struct
     bool protected;
 }
 Command;
+
 
 
 Command commands[] =
@@ -40,22 +44,23 @@ void scroll()
     {
         for(int col = 0; col < 80; col++)
         {
-            video[((row - 1) * 80 + col) * 2] =
-            video[(row * 80 + col) * 2];
+            video[((row-1)*80+col)*2] =
+            video[(row*80+col)*2];
 
-            video[((row - 1) * 80 + col) * 2 + 1] =
-            video[(row * 80 + col) * 2 + 1];
+            video[((row-1)*80+col)*2+1] =
+            video[(row*80+col)*2+1];
         }
     }
 
 
     for(int col = 0; col < 80; col++)
     {
-        video[(24 * 80 + col) * 2] = ' ';
-        video[(24 * 80 + col) * 2 + 1] = 0x07;
+        video[(24*80+col)*2] = ' ';
+        video[(24*80+col)*2+1] = 0x07;
     }
 
-    cursor = 24 * 80;
+
+    cursor = 24*80;
 }
 
 
@@ -64,17 +69,17 @@ void putchar(char c)
 {
     if(c == '\n')
     {
-        cursor = ((cursor / 80) + 1) * 80;
+        cursor = ((cursor/80)+1)*80;
     }
     else
     {
-        video[cursor * 2] = c;
-        video[cursor * 2 + 1] = 0x07;
+        video[cursor*2] = c;
+        video[cursor*2+1] = 0x07;
         cursor++;
     }
 
 
-    if(cursor >= 80 * 25)
+    if(cursor >= 80*25)
     {
         scroll();
     }
@@ -86,7 +91,7 @@ void print(char *text)
 {
     int i = 0;
 
-    while(text[i] != '\0')
+    while(text[i])
     {
         putchar(text[i]);
         i++;
@@ -97,10 +102,10 @@ void print(char *text)
 
 void clear()
 {
-    for(int i = 0; i < 80 * 25; i++)
+    for(int i = 0; i < 80*25; i++)
     {
-        video[i * 2] = ' ';
-        video[i * 2 + 1] = 0x07;
+        video[i*2] = ' ';
+        video[i*2+1] = 0x07;
     }
 
     cursor = 0;
@@ -142,45 +147,70 @@ void cmdlist()
 
 
 
-void enable(char *name)
+int find_command(char *name)
 {
     for(int i = 0; i < command_count; i++)
     {
-        if(equal(commands[i].name, name))
+        if(equal(commands[i].name,name))
         {
-            commands[i].enabled = true;
-            print("\nCommand enabled\n");
-            return;
+            return i;
         }
     }
 
-    print("\nCommand not found\n");
+    return -1;
+}
+
+
+
+void enable(char *name)
+{
+    int id = find_command(name);
+
+
+    if(id == -1)
+    {
+        print("\nCommand not found\n");
+        return;
+    }
+
+
+    commands[id].enabled = true;
+
+    print("\nCommand enabled\n");
 }
 
 
 
 void disable(char *name)
 {
-    for(int i = 0; i < command_count; i++)
+    int id = find_command(name);
+
+
+    if(id == -1)
     {
-        if(equal(commands[i].name, name))
-        {
-
-            if(commands[i].protected)
-            {
-                print("\nCannot disable protected command\n");
-                return;
-            }
-
-
-            commands[i].enabled = false;
-            print("\nCommand disabled\n");
-            return;
-        }
+        print("\nCommand not found\n");
+        return;
     }
 
 
-    print("\nCommand not found\n");
+    if(commands[id].protected)
+    {
+        print("\nCannot disable protected command\n");
+        return;
+    }
+
+
+    commands[id].enabled = false;
+
+    print("\nCommand disabled\n");
+}
+
+
+
+void echo(char *text)
+{
+    print("\n");
+    print(text);
 }
 
 
@@ -189,17 +219,31 @@ bool equal(char *a, char *b)
 {
     int i = 0;
 
+
     while(a[i] && b[i])
     {
         if(a[i] != b[i])
-        {
             return false;
-        }
 
         i++;
     }
 
+
     return a[i] == b[i];
+}
+
+
+
+bool enabled(char *name)
+{
+    int id = find_command(name);
+
+
+    if(id == -1)
+        return false;
+
+
+    return commands[id].enabled;
 }
 
 
@@ -209,18 +253,65 @@ void run_command(char *input)
 
     if(equal(input,"credits"))
     {
-        credits();
+        if(enabled("credits"))
+            credits();
+        else
+            print("\nerror: Command not Found or not Enabled\n");
     }
+
 
     else if(equal(input,"cmdlist"))
     {
         cmdlist();
     }
 
+
     else if(equal(input,"clear"))
     {
-        clear();
+        if(enabled("clear"))
+            clear();
+        else
+            print("\nerror: Command not Found or not Enabled\n");
     }
+
+
+    else if(input[0]=='e' &&
+            input[1]=='c' &&
+            input[2]=='h' &&
+            input[3]=='o' &&
+            input[4]==' ')
+    {
+        if(enabled("echo"))
+            echo(input+5);
+        else
+            print("\nerror: Command not Found or not Enabled\n");
+    }
+
+
+    else if(input[0]=='e' &&
+            input[1]=='n' &&
+            input[2]=='a' &&
+            input[3]=='b' &&
+            input[4]=='l' &&
+            input[5]=='e' &&
+            input[6]==' ')
+    {
+        enable(input+7);
+    }
+
+
+    else if(input[0]=='d' &&
+            input[1]=='i' &&
+            input[2]=='s' &&
+            input[3]=='a' &&
+            input[4]=='b' &&
+            input[5]=='l' &&
+            input[6]=='e' &&
+            input[7]==' ')
+    {
+        disable(input+8);
+    }
+
 
     else
     {
@@ -237,6 +328,21 @@ char keyboard()
     unsigned char key;
 
 
+    char map[] =
+    {
+        0,27,
+        '1','2','3','4','5','6','7','8','9','0',
+        '-','=',8,9,
+        'q','w','e','r','t','y','u','i','o','p',
+        '[',']',13,0,
+        'a','s','d','f','g','h','j','k','l',
+        ';','\'','`',0,'\\',
+        'z','x','c','v','b','n','m',
+        ',','.','/',
+        0,'*',0,' '
+    };
+
+
     while(1)
     {
         __asm__ volatile("inb $0x64, %0" : "=a"(status));
@@ -248,25 +354,7 @@ char keyboard()
 
 
             if(key < 128)
-            {
-
-                char map[] =
-                {
-                    0,27,
-                    '1','2','3','4','5','6','7','8','9','0',
-                    '-','=',8,9,
-                    'q','w','e','r','t','y','u','i','o','p',
-                    '[',']',13,0,
-                    'a','s','d','f','g','h','j','k','l',
-                    ';','\'','`',0,'\\',
-                    'z','x','c','v','b','n','m',
-                    ',','.','/',
-                    0,'*',0,' '
-                };
-
-
                 return map[key];
-            }
         }
     }
 }
@@ -301,14 +389,6 @@ void kernel_main()
             print("\n>");
         }
 
-        else if(c == 8)
-        {
-            if(pos > 0)
-            {
-                pos--;
-            }
-        }
-
         else
         {
             input[pos++] = c;
@@ -316,5 +396,4 @@ void kernel_main()
         }
     }
 }
-
 
