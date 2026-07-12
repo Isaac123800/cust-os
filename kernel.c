@@ -1,10 +1,12 @@
 // kernel.c
-// IsaacOS command system
+// Custos command system
 
 #include <stdbool.h>
 
 char *video_memory = (char *)0xB8000;
 int cursor = 0;
+
+bool equal(char *a, char *b);
 
 
 void print(char *text)
@@ -13,8 +15,17 @@ void print(char *text)
 
     while (text[i] != '\0')
     {
-        video_memory[cursor++] = text[i];
-        video_memory[cursor++] = 0x07;
+        if (text[i] == '\n')
+        {
+            cursor = ((cursor / 160) + 1) * 160;
+        }
+        else
+        {
+            video_memory[cursor] = text[i];
+            video_memory[cursor + 1] = 0x07;
+            cursor += 2;
+        }
+
         i++;
     }
 }
@@ -25,8 +36,7 @@ typedef struct
     char name[20];
     bool enabled;
     bool protected;
-}
-Command;
+} Command;
 
 
 Command commands[] =
@@ -56,15 +66,15 @@ void cmdlist()
 {
     print("Commands:\n");
 
-    for(int i = 0; i < command_count; i++)
+    for (int i = 0; i < command_count; i++)
     {
         print(commands[i].name);
 
-        if(commands[i].protected)
+        if (commands[i].protected)
         {
             print(" Protected\n");
         }
-        else if(commands[i].enabled)
+        else if (commands[i].enabled)
         {
             print(" Enabled\n");
         }
@@ -78,9 +88,9 @@ void cmdlist()
 
 void enable(char *name)
 {
-    for(int i = 0; i < command_count; i++)
+    for (int i = 0; i < command_count; i++)
     {
-        if(equal(commands[i].name, name))
+        if (equal(commands[i].name, name))
         {
             commands[i].enabled = true;
             print("Command enabled\n");
@@ -94,11 +104,11 @@ void enable(char *name)
 
 void disable(char *name)
 {
-    for(int i = 0; i < command_count; i++)
+    for (int i = 0; i < command_count; i++)
     {
-        if(equal(commands[i].name, name))
+        if (equal(commands[i].name, name))
         {
-            if(commands[i].protected)
+            if (commands[i].protected)
             {
                 print("Cannot disable protected command\n");
                 return;
@@ -118,10 +128,12 @@ bool equal(char *a, char *b)
 {
     int i = 0;
 
-    while(a[i] != '\0' && b[i] != '\0')
+    while (a[i] != '\0' && b[i] != '\0')
     {
-        if(a[i] != b[i])
+        if (a[i] != b[i])
+        {
             return false;
+        }
 
         i++;
     }
@@ -132,12 +144,13 @@ bool equal(char *a, char *b)
 
 void kernel_main()
 {
-    print("Welcome to IsaacOS\n");
-    print("Type commands:\n\n");
+    print("Welcome to Custos\n\n");
 
     credits();
 
-    while(1)
+    print("\nType commands:\n");
+
+    while (1)
     {
 
     }
