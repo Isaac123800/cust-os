@@ -1,16 +1,26 @@
-// kernel.c
-// Custos OS command shell
+// Custos OS kernel.c
+// Optimized shell + RAM filesystem
 
 #include <stdbool.h>
 
+#define MAX_FILES 16
+#define MAX_NAME 32
+#define MAX_DATA 256
 
 char *video = (char *)0xB8000;
-
 int cursor = 0;
 
 
-bool equal(char *a, char *b);
+typedef struct
+{
+    char name[MAX_NAME];
+    char data[MAX_DATA];
+    int size;
+    bool used;
+} File;
 
+
+File files[MAX_FILES];
 
 
 typedef struct
@@ -18,9 +28,7 @@ typedef struct
     char name[20];
     bool enabled;
     bool protected;
-}
-Command;
-
+} Command;
 
 
 Command commands[] =
@@ -30,35 +38,72 @@ Command commands[] =
     {"enable", true, true},
     {"disable", true, true},
     {"echo", true, false},
-    {"clear", true, false}
+    {"clear", true, false},
+    {"touch", true, false},
+    {"write", true, false},
+    {"cat", true, false},
+    {"ls", true, false},
+    {"rm", true, false}
 };
 
 
-int command_count = 6;
+int command_count = 11;
+
+
+
+bool equal(char *a, char *b)
+{
+    int i = 0;
+
+    while(a[i] && b[i])
+    {
+        if(a[i] != b[i])
+            return false;
+
+        i++;
+    }
+
+    return a[i] == b[i];
+}
+
+
+bool starts(char *a, char *b)
+{
+    int i = 0;
+
+    while(b[i])
+    {
+        if(a[i] != b[i])
+            return false;
+
+        i++;
+    }
+
+    return true;
+}
 
 
 
 void scroll()
 {
-    for(int row = 1; row < 25; row++)
+    for(int y = 1; y < 25; y++)
     {
-        for(int col = 0; col < 80; col++)
+        for(int x = 0; x < 80; x++)
         {
-            video[((row-1)*80+col)*2] =
-            video[(row*80+col)*2];
+            video[((y-1)*80+x)*2] =
+            video[(y*80+x)*2];
 
-            video[((row-1)*80+col)*2+1] =
-            video[(row*80+col)*2+1];
+            video[((y-1)*80+x)*2+1] =
+            video[(y*80+x)*2+1];
         }
     }
 
 
-    for(int col = 0; col < 80; col++)
+    for(int x = 0; x < 80; x++)
     {
-        video[(24*80+col)*2] = ' ';
-        video[(24*80+col)*2+1] = 0x07;
+        video[(24*80+x)*2] = ' ';
+        video[(24*80+x)*2+1] = 0x07;
     }
-
 
     cursor = 24*80;
 }
@@ -80,21 +125,17 @@ void putchar(char c)
 
 
     if(cursor >= 80*25)
-    {
         scroll();
-    }
 }
 
 
 
-void print(char *text)
+void print(char *s)
 {
-    int i = 0;
-
-    while(text[i])
+    while(*s)
     {
-        putchar(text[i]);
-        i++;
+        putchar(*s);
+        s++;
     }
 }
 
@@ -109,6 +150,113 @@ void clear()
     }
 
     cursor = 0;
+}
+
+
+
+void backspace()
+{
+    if(cursor > 0)
+    {
+        cursor--;
+
+        video[cursor*2] = ' ';
+        video[cursor*2+1] = 0x07;
+    }
+}
+
+
+
+/* ---------- RAM FILESYSTEM ---------- */
+
+
+int find_file(char *name)
+{
+    for(int i = 0; i < MAX_FILES; i++)
+    {
+        if(files[i].used && equal(files[i].name,name))
+            return i;
+    }
+
+    return -1;
+}
+
+
+
+int create_file(char *name)
+{
+    for(int i = 0; i < MAX_FILES; i++)
+    {
+        if(!files[i].used)
+        {
+            files[i].used = true;
+            files[i].size = 0;
+
+            int j = 0;
+            while(name[j] && j < MAX_NAME-1)
+            {
+                files[i].name[j] = name[j];
+                j++;
+            }
+
+            files[i].name[j] = 0;
+
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+
+
+void delete_file(char *name)
+{
+    int id = find_file(name);
+
+    if(id >= 0)
+        files[id].used = false;
+}
+
+
+
+void list_files()
+{
+    print("\nFiles:\n");
+
+    for(int i = 0; i < MAX_FILES; i++)
+    {
+        if(files[i].used)
+        {
+            print(files[i].name);
+            print("\n");
+        }
+    }
+}
+/* ---------- COMMAND SYSTEM ---------- */
+
+
+int find_command(char *name)
+{
+    for(int i = 0; i < command_count; i++)
+    {
+        if(equal(commands[i].name,name))
+            return i;
+    }
+
+    return -1;
+}
+
+
+
+bool command_enabled(char *name)
+{
+    int id = find_command(name);
+
+    if(id < 0)
+        return false;
+
+    return commands[id].enabled;
 }
 
 
@@ -131,62 +279,37 @@ void cmdlist()
         print(commands[i].name);
 
         if(commands[i].protected)
-        {
             print(" Protected\n");
-        }
         else if(commands[i].enabled)
-        {
             print(" Enabled\n");
-        }
         else
-        {
             print(" Disabled\n");
-        }
     }
 }
 
 
 
-int find_command(char *name)
-{
-    for(int i = 0; i < command_count; i++)
-    {
-        if(equal(commands[i].name,name))
-        {
-            return i;
-        }
-    }
-
-    return -1;
-}
-
-
-
-void enable(char *name)
+void enable_command(char *name)
 {
     int id = find_command(name);
 
-
-    if(id == -1)
+    if(id < 0)
     {
         print("\nCommand not found\n");
         return;
     }
 
-
     commands[id].enabled = true;
-
     print("\nCommand enabled\n");
 }
 
 
 
-void disable(char *name)
+void disable_command(char *name)
 {
     int id = find_command(name);
 
-
-    if(id == -1)
+    if(id < 0)
     {
         print("\nCommand not found\n");
         return;
@@ -201,8 +324,144 @@ void disable(char *name)
 
 
     commands[id].enabled = false;
-
     print("\nCommand disabled\n");
+}
+
+
+
+/* ---------- FILE COMMANDS ---------- */
+
+
+void touch(char *name)
+{
+    if(find_file(name) >= 0)
+    {
+        print("\nFile already exists\n");
+        return;
+    }
+
+
+    if(create_file(name) < 0)
+        print("\nNo space\n");
+    else
+        print("\nFile created\n");
+}
+
+
+
+void cat(char *name)
+{
+    int id = find_file(name);
+
+    if(id < 0)
+    {
+        print("\nFile not found\n");
+        return;
+    }
+
+
+    print("\n");
+    print(files[id].data);
+}
+
+
+
+void write_file(char *name)
+{
+    int id = find_file(name);
+
+
+    if(id < 0)
+    {
+        print("\nFile not found\n");
+        return;
+    }
+
+
+    print("\nEnter text:\n");
+
+
+    char buffer[MAX_DATA];
+    int pos = 0;
+
+
+    while(1)
+    {
+        char c;
+
+
+        unsigned char status;
+        unsigned char key;
+
+
+        while(1)
+        {
+            __asm__ volatile("inb $0x64, %0" : "=a"(status));
+
+            if(status & 1)
+            {
+                __asm__ volatile("inb $0x60, %0" : "=a"(key));
+
+                if(key < 128)
+                {
+                    char map[] =
+                    {
+                        0,27,
+                        '1','2','3','4','5','6','7','8','9','0',
+                        '-','=',8,9,
+                        'q','w','e','r','t','y','u','i','o','p',
+                        '[',']',13,0,
+                        'a','s','d','f','g','h','j','k','l',
+                        ';','\'','`',0,'\\',
+                        'z','x','c','v','b','n','m',
+                        ',','.','/',
+                        0,'*',0,' '
+                    };
+
+                    c = map[key];
+                    break;
+                }
+            }
+        }
+
+
+        if(c == 13)
+            break;
+
+
+        if(c == 8)
+        {
+            if(pos > 0)
+            {
+                pos--;
+                backspace();
+            }
+        }
+        else if(pos < MAX_DATA-1)
+        {
+            buffer[pos++] = c;
+            putchar(c);
+        }
+    }
+
+
+    buffer[pos] = 0;
+
+
+    int i = 0;
+
+    while(buffer[i])
+    {
+        files[id].data[i] = buffer[i];
+        i++;
+    }
+
+
+    files[id].data[i] = 0;
+    files[id].size = i;
+
+
+    print("\nSaved\n");
 }
 
 
@@ -215,45 +474,11 @@ void echo(char *text)
 
 
 
-bool equal(char *a, char *b)
-{
-    int i = 0;
-
-
-    while(a[i] && b[i])
-    {
-        if(a[i] != b[i])
-            return false;
-
-        i++;
-    }
-
-
-    return a[i] == b[i];
-}
-
-
-
-bool enabled(char *name)
-{
-    int id = find_command(name);
-
-
-    if(id == -1)
-        return false;
-
-
-    return commands[id].enabled;
-}
-
-
-
 void run_command(char *input)
 {
-
     if(equal(input,"credits"))
     {
-        if(enabled("credits"))
+        if(command_enabled("credits"))
             credits();
         else
             print("\nerror: Command not Found or not Enabled\n");
@@ -268,48 +493,57 @@ void run_command(char *input)
 
     else if(equal(input,"clear"))
     {
-        if(enabled("clear"))
-            clear();
-        else
-            print("\nerror: Command not Found or not Enabled\n");
+        clear();
     }
 
 
-    else if(input[0]=='e' &&
-            input[1]=='c' &&
-            input[2]=='h' &&
-            input[3]=='o' &&
-            input[4]==' ')
+    else if(starts(input,"echo "))
     {
-        if(enabled("echo"))
+        if(command_enabled("echo"))
             echo(input+5);
-        else
-            print("\nerror: Command not Found or not Enabled\n");
     }
 
 
-    else if(input[0]=='e' &&
-            input[1]=='n' &&
-            input[2]=='a' &&
-            input[3]=='b' &&
-            input[4]=='l' &&
-            input[5]=='e' &&
-            input[6]==' ')
+    else if(starts(input,"enable "))
     {
-        enable(input+7);
+        enable_command(input+7);
     }
 
 
-    else if(input[0]=='d' &&
-            input[1]=='i' &&
-            input[2]=='s' &&
-            input[3]=='a' &&
-            input[4]=='b' &&
-            input[5]=='l' &&
-            input[6]=='e' &&
-            input[7]==' ')
+    else if(starts(input,"disable "))
     {
-        disable(input+8);
+        disable_command(input+8);
+    }
+
+
+    else if(starts(input,"touch "))
+    {
+        touch(input+6);
+    }
+
+
+    else if(starts(input,"cat "))
+    {
+        cat(input+4);
+    }
+
+
+    else if(starts(input,"write "))
+    {
+        write_file(input+6);
+    }
+
+
+    else if(equal(input,"ls"))
+    {
+        list_files();
+    }
+
+
+    else if(starts(input,"rm "))
+    {
+        delete_file(input+3);
+        print("\nDeleted\n");
     }
 
 
@@ -317,9 +551,8 @@ void run_command(char *input)
     {
         print("\nerror: Command not Found or not Enabled\n");
     }
-
 }
-
+/* ---------- KEYBOARD ---------- */
 
 
 char keyboard()
@@ -361,15 +594,19 @@ char keyboard()
 
 
 
+/* ---------- KERNEL START ---------- */
+
+
 void kernel_main()
 {
     clear();
 
+
     print("Welcome to Custos\n");
     print("Type commands:\n\n>");
 
-    char input[100];
 
+    char input[100];
     int pos = 0;
 
 
@@ -380,19 +617,40 @@ void kernel_main()
 
         if(c == 13)
         {
-            input[pos] = '\0';
+            input[pos] = 0;
+
 
             run_command(input);
 
+
             pos = 0;
+
 
             print("\n>");
         }
 
-        else
+
+        else if(c == 8)
         {
-            input[pos++] = c;
-            putchar(c);
+            if(pos > 0)
+            {
+                pos--;
+
+                input[pos] = 0;
+
+                backspace();
+            }
+        }
+
+
+        else if(c)
+        {
+            if(pos < 99)
+            {
+                input[pos++] = c;
+
+                putchar(c);
+            }
         }
     }
 }
