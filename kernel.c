@@ -1,14 +1,21 @@
 // Custos OS kernel.c
-// Optimized shell + RAM filesystem
+// Shell + RAM filesystem + colors
 
 #include <stdbool.h>
+
 
 #define MAX_FILES 16
 #define MAX_NAME 32
 #define MAX_DATA 256
 
+
 char *video = (char *)0xB8000;
+
 int cursor = 0;
+
+int text_color = 7;
+int bg_color = 0;
+
 
 
 typedef struct
@@ -17,10 +24,12 @@ typedef struct
     char data[MAX_DATA];
     int size;
     bool used;
+
 } File;
 
 
 File files[MAX_FILES];
+
 
 
 typedef struct
@@ -28,7 +37,9 @@ typedef struct
     char name[20];
     bool enabled;
     bool protected;
+
 } Command;
+
 
 
 Command commands[] =
@@ -43,11 +54,12 @@ Command commands[] =
     {"write", true, false},
     {"cat", true, false},
     {"ls", true, false},
-    {"rm", true, false}
+    {"rm", true, false},
+    {"color", true, false}
 };
 
 
-int command_count = 11;
+int command_count = 12;
 
 
 
@@ -65,6 +77,7 @@ bool equal(char *a, char *b)
 
     return a[i] == b[i];
 }
+
 
 
 bool starts(char *a, char *b)
@@ -102,8 +115,10 @@ void scroll()
     for(int x = 0; x < 80; x++)
     {
         video[(24*80+x)*2] = ' ';
-        video[(24*80+x)*2+1] = 0x07;
+        video[(24*80+x)*2+1] =
+        (bg_color << 4) | text_color;
     }
+
 
     cursor = 24*80;
 }
@@ -114,12 +129,15 @@ void putchar(char c)
 {
     if(c == '\n')
     {
-        cursor = ((cursor/80)+1)*80;
+        cursor = ((cursor / 80)+1)*80;
     }
     else
     {
         video[cursor*2] = c;
-        video[cursor*2+1] = 0x07;
+
+        video[cursor*2+1] =
+        (bg_color << 4) | text_color;
+
         cursor++;
     }
 
@@ -130,12 +148,12 @@ void putchar(char c)
 
 
 
-void print(char *s)
+void print(char *text)
 {
-    while(*s)
+    while(*text)
     {
-        putchar(*s);
-        s++;
+        putchar(*text);
+        text++;
     }
 }
 
@@ -146,8 +164,11 @@ void clear()
     for(int i = 0; i < 80*25; i++)
     {
         video[i*2] = ' ';
-        video[i*2+1] = 0x07;
+
+        video[i*2+1] =
+        (bg_color << 4) | text_color;
     }
+
 
     cursor = 0;
 }
@@ -161,12 +182,50 @@ void backspace()
         cursor--;
 
         video[cursor*2] = ' ';
-        video[cursor*2+1] = 0x07;
+
+        video[cursor*2+1] =
+        (bg_color << 4) | text_color;
     }
 }
 
 
 
+char keyboard()
+{
+    unsigned char status;
+    unsigned char key;
+
+
+    char map[] =
+    {
+        0,27,
+        '1','2','3','4','5','6','7','8','9','0',
+        '-','=',8,9,
+        'q','w','e','r','t','y','u','i','o','p',
+        '[',']',13,0,
+        'a','s','d','f','g','h','j','k','l',
+        ';','\'','`',0,'\\',
+        'z','x','c','v','b','n','m',
+        ',','.','/',
+        0,'*',0,' '
+    };
+
+
+    while(1)
+    {
+        __asm__ volatile("inb $0x64, %0" : "=a"(status));
+
+
+        if(status & 1)
+        {
+            __asm__ volatile("inb $0x60, %0" : "=a"(key));
+
+
+            if(key < 128)
+                return map[key];
+        }
+    }
+}
 /* ---------- RAM FILESYSTEM ---------- */
 
 
@@ -193,6 +252,7 @@ int create_file(char *name)
             files[i].size = 0;
 
             int j = 0;
+
             while(name[j] && j < MAX_NAME-1)
             {
                 files[i].name[j] = name[j];
@@ -233,7 +293,71 @@ void list_files()
         }
     }
 }
-/* ---------- COMMAND SYSTEM ---------- */
+
+
+
+/* ---------- COLORS ---------- */
+
+
+void show_colors()
+{
+    print("\nColors:\n");
+    print("0 Black\n");
+    print("1 Red\n");
+    print("2 Green\n");
+    print("3 Yellow\n");
+    print("4 Blue\n");
+    print("5 Magenta\n");
+    print("6 Cyan\n");
+    print("7 White\n");
+    print("8 Gray\n");
+    print("9 Light Red\n");
+    print("10 Light Green\n");
+    print("11 Light Yellow\n");
+    print("12 Light Blue\n");
+    print("13 Light Magenta\n");
+    print("14 Light Cyan\n");
+    print("15 Bright White\n");
+}
+
+
+
+int get_number(char *s)
+{
+    int n = 0;
+
+    while(*s >= '0' && *s <= '9')
+    {
+        n = n * 10 + (*s - '0');
+        s++;
+    }
+
+    return n;
+}
+
+
+
+void set_background(char *n)
+{
+    bg_color = get_number(n);
+
+    clear();
+
+    print("Background changed\n");
+}
+
+
+
+void set_text(char *n)
+{
+    text_color = get_number(n);
+
+    print("Text color changed\n");
+}
+
+
+
+/* ---------- COMMANDS ---------- */
 
 
 int find_command(char *name)
@@ -249,7 +373,7 @@ int find_command(char *name)
 
 
 
-bool command_enabled(char *name)
+bool enabled(char *name)
 {
     int id = find_command(name);
 
@@ -280,8 +404,10 @@ void cmdlist()
 
         if(commands[i].protected)
             print(" Protected\n");
+
         else if(commands[i].enabled)
             print(" Enabled\n");
+
         else
             print(" Disabled\n");
     }
@@ -293,13 +419,16 @@ void enable_command(char *name)
 {
     int id = find_command(name);
 
+
     if(id < 0)
     {
         print("\nCommand not found\n");
         return;
     }
 
+
     commands[id].enabled = true;
+
     print("\nCommand enabled\n");
 }
 
@@ -308,6 +437,7 @@ void enable_command(char *name)
 void disable_command(char *name)
 {
     int id = find_command(name);
+
 
     if(id < 0)
     {
@@ -324,11 +454,9 @@ void disable_command(char *name)
 
 
     commands[id].enabled = false;
+
     print("\nCommand disabled\n");
 }
-
-
-
 /* ---------- FILE COMMANDS ---------- */
 
 
@@ -352,6 +480,7 @@ void touch(char *name)
 void cat(char *name)
 {
     int id = find_file(name);
+
 
     if(id < 0)
     {
@@ -381,48 +510,12 @@ void write_file(char *name)
     print("\nEnter text:\n");
 
 
-    char buffer[MAX_DATA];
     int pos = 0;
 
 
     while(1)
     {
-        char c;
-
-
-        unsigned char status;
-        unsigned char key;
-
-
-        while(1)
-        {
-            __asm__ volatile("inb $0x64, %0" : "=a"(status));
-
-            if(status & 1)
-            {
-                __asm__ volatile("inb $0x60, %0" : "=a"(key));
-
-                if(key < 128)
-                {
-                    char map[] =
-                    {
-                        0,27,
-                        '1','2','3','4','5','6','7','8','9','0',
-                        '-','=',8,9,
-                        'q','w','e','r','t','y','u','i','o','p',
-                        '[',']',13,0,
-                        'a','s','d','f','g','h','j','k','l',
-                        ';','\'','`',0,'\\',
-                        'z','x','c','v','b','n','m',
-                        ',','.','/',
-                        0,'*',0,' '
-                    };
-
-                    c = map[key];
-                    break;
-                }
-            }
-        }
+        char c = keyboard();
 
 
         if(c == 13)
@@ -437,28 +530,18 @@ void write_file(char *name)
                 backspace();
             }
         }
+
+
         else if(pos < MAX_DATA-1)
         {
-            buffer[pos++] = c;
+            files[id].data[pos++] = c;
             putchar(c);
         }
     }
 
 
-    buffer[pos] = 0;
-
-
-    int i = 0;
-
-    while(buffer[i])
-    {
-        files[id].data[i] = buffer[i];
-        i++;
-    }
-
-
-    files[id].data[i] = 0;
-    files[id].size = i;
+    files[id].data[pos] = 0;
+    files[id].size = pos;
 
 
     print("\nSaved\n");
@@ -474,14 +557,15 @@ void echo(char *text)
 
 
 
+/* ---------- COMMAND RUNNER ---------- */
+
+
 void run_command(char *input)
 {
     if(equal(input,"credits"))
     {
-        if(command_enabled("credits"))
+        if(enabled("credits"))
             credits();
-        else
-            print("\nerror: Command not Found or not Enabled\n");
     }
 
 
@@ -499,7 +583,7 @@ void run_command(char *input)
 
     else if(starts(input,"echo "))
     {
-        if(command_enabled("echo"))
+        if(enabled("echo"))
             echo(input+5);
     }
 
@@ -516,21 +600,39 @@ void run_command(char *input)
     }
 
 
+    else if(equal(input,"color"))
+    {
+        show_colors();
+    }
+
+
+    else if(starts(input,"color bg "))
+    {
+        set_background(input+9);
+    }
+
+
+    else if(starts(input,"color txt "))
+    {
+        set_text(input+10);
+    }
+
+
     else if(starts(input,"touch "))
     {
         touch(input+6);
     }
 
 
-    else if(starts(input,"cat "))
-    {
-        cat(input+4);
-    }
-
-
     else if(starts(input,"write "))
     {
         write_file(input+6);
+    }
+
+
+    else if(starts(input,"cat "))
+    {
+        cat(input+4);
     }
 
 
@@ -552,49 +654,10 @@ void run_command(char *input)
         print("\nerror: Command not Found or not Enabled\n");
     }
 }
-/* ---------- KEYBOARD ---------- */
-
-
-char keyboard()
-{
-    unsigned char status;
-    unsigned char key;
-
-
-    char map[] =
-    {
-        0,27,
-        '1','2','3','4','5','6','7','8','9','0',
-        '-','=',8,9,
-        'q','w','e','r','t','y','u','i','o','p',
-        '[',']',13,0,
-        'a','s','d','f','g','h','j','k','l',
-        ';','\'','`',0,'\\',
-        'z','x','c','v','b','n','m',
-        ',','.','/',
-        0,'*',0,' '
-    };
-
-
-    while(1)
-    {
-        __asm__ volatile("inb $0x64, %0" : "=a"(status));
-
-
-        if(status & 1)
-        {
-            __asm__ volatile("inb $0x60, %0" : "=a"(key));
-
-
-            if(key < 128)
-                return map[key];
-        }
-    }
-}
 
 
 
-/* ---------- KERNEL START ---------- */
+/* ---------- MAIN ---------- */
 
 
 void kernel_main()
@@ -607,6 +670,7 @@ void kernel_main()
 
 
     char input[100];
+
     int pos = 0;
 
 
@@ -654,4 +718,3 @@ void kernel_main()
         }
     }
 }
-
