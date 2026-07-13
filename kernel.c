@@ -115,6 +115,7 @@ void scroll()
     for(int x = 0; x < 80; x++)
     {
         video[(24*80+x)*2] = ' ';
+
         video[(24*80+x)*2+1] =
         (bg_color << 4) | text_color;
     }
@@ -357,7 +358,7 @@ void set_text(char *n)
 
 
 
-/* ---------- COMMANDS ---------- */
+/* ---------- COMMAND SYSTEM ---------- */
 
 
 int find_command(char *name)
@@ -390,6 +391,7 @@ void credits()
     print("\nMade By:\n");
     print("Isaac Polomski\n");
     print("Roshan Inbasekar\n");
+    print("Kirthis Kirubaventhan\n");
 }
 
 
@@ -471,6 +473,7 @@ void touch(char *name)
 
     if(create_file(name) < 0)
         print("\nNo space\n");
+
     else
         print("\nFile created\n");
 }
@@ -557,7 +560,7 @@ void echo(char *text)
 
 
 
-/* ---------- COMMAND RUNNER ---------- */
+/* ---------- COMMAND PARSER ---------- */
 
 
 void run_command(char *input)
@@ -645,6 +648,7 @@ void run_command(char *input)
     else if(starts(input,"rm "))
     {
         delete_file(input+3);
+
         print("\nDeleted\n");
     }
 
@@ -657,7 +661,7 @@ void run_command(char *input)
 
 
 
-/* ---------- MAIN ---------- */
+/* ---------- KERNEL ENTRY ---------- */
 
 
 void kernel_main()
