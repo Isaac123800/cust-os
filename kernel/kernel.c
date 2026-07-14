@@ -41,7 +41,7 @@ void scroll()
 
     for(int x = 0; x < 80; x++)
     {
-        video[(24*80+x)*2] = '';
+        video[(24*80+x)*2] = ' ';
 
 
         video[(24*80+x)*2+1] =
