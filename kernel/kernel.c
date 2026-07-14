@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-#include "include/types.h"
+#include "Include/types.h"
 
 #include "drivers/disk.h"
 #include "fs/filesystem.h"
