@@ -14,12 +14,14 @@ all:
 
 	$(CC) $(CFLAGS) -c kernel/kernel.c -o build/kernel.o
 	$(CC) $(CFLAGS) -c drivers/disk.c -o build/disk.o
+	$(CC) $(CFLAGS) -c drivers/ata.c -o build/ata.o
 	$(CC) $(CFLAGS) -c fs/filesystem.c -o build/filesystem.o
 
 	$(LD) $(LDFLAGS) \
 		build/boot.o \
 		build/kernel.o \
 		build/disk.o \
+		build/ata.o \
 		build/filesystem.o \
 		-o build/kernel.bin
 
