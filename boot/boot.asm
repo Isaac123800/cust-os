@@ -1,4 +1,4 @@
-; boot.asm
+; boot/boot.asm
 
 section .multiboot
 align 4
@@ -15,15 +15,17 @@ dd CHECKSUM
 
 section .bss
 align 16
+
 stack_bottom:
-resb 16384          ; 16 KB stack
+    resb 16384      ; 16 KB stack
+
 stack_top:
 
 section .text
-global start
+global _start
 extern kernel_main
 
-start:
+_start:
     cli
 
     mov esp, stack_top
