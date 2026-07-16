@@ -1,4 +1,3 @@
-```c
 #ifndef ATA_H
 #define ATA_H
 
