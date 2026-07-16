@@ -1,4 +1,4 @@
-```c
+c
 #include "disk.h"
 
 #include "ata.h"
