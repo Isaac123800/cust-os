@@ -154,13 +154,17 @@ static bool load_superblock()
     {
         return false;
     }
-  
 
 
     return true;
 }
+
+
+
+
+
 /*
-    Save file table to disk
+    Save file table
 */
 
 static void save_file_table()
@@ -219,7 +223,7 @@ static void save_file_table()
 
 
 /*
-    Load file table from disk
+    Load file table
 */
 
 static void load_file_table()
@@ -268,11 +272,6 @@ static void load_file_table()
         sector++;
     }
 }
-
-
-
-
-
 /*
     Format filesystem
 
@@ -294,8 +293,12 @@ void fs_format(void)
 
 
 
+    /*
+        Use real disk size
+    */
+
     fs.super.total_sectors =
-        1024 * 1024;
+        disk_sector_count();
 
 
 
@@ -310,7 +313,13 @@ void fs_format(void)
 
 
     fs.super.free_blocks =
-        10000;
+        fs.super.total_sectors -
+        FS_DATA_START;
+
+
+
+    next_free_sector =
+        FS_DATA_START;
 
 
 
@@ -343,6 +352,11 @@ bool fs_mount(void)
 
 
     load_file_table();
+
+
+
+    next_free_sector =
+        fs.super.data_start;
 
 
 
@@ -393,6 +407,11 @@ void fs_sync(void)
 
     save_file_table();
 }
+
+
+
+
+
 /*
     Find file by name
 
@@ -452,11 +471,6 @@ static int find_free_entry()
 
 /*
     Basic sector allocator
-
-    Temporary version.
-
-    Later this will be replaced
-    with a filesystem bitmap.
 */
 
 static uint32_t next_free_sector =
@@ -466,14 +480,13 @@ static uint32_t next_free_sector =
 
 static uint32_t allocate_sector()
 {
-    uint32_t sector =
-        next_free_sector;
+    if(next_free_sector >= fs.super.total_sectors)
+    {
+        return 0;
+    }
 
 
-    next_free_sector++;
-
-
-    return sector;
+    return next_free_sector++;
 }
 
 
@@ -544,17 +557,28 @@ bool fs_create(char *name)
 
 
 
+    if(file->start_sector == 0)
+    {
+        file->used = FILE_UNUSED;
+
+        return false;
+    }
+
+
+
     fs_sync();
 
 
 
     return true;
 }
+
+
+
+
+
 /*
     Write data to file
-
-    Saves file contents
-    to disk sectors.
 */
 
 bool fs_write(
@@ -650,11 +674,6 @@ bool fs_write(
 
     return true;
 }
-
-
-
-
-
 /*
     Read file data
 
@@ -738,6 +757,11 @@ bool fs_read(
 
     return true;
 }
+
+
+
+
+
 /*
     Delete file
 
