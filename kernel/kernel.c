@@ -745,28 +745,6 @@ void kernel_main()
 
     clear();
 
-
-
-    /*
-        Initialize hardware
-    */
-
-    disk_init();
-
-
-
-    /*
-        Load filesystem
-
-        If no filesystem exists,
-        it will format a new one.
-    */
-
-    fs_init();
-
-
-
-
     print("Welcome to Custos\n");
 
     print("Filesystem loaded\n");
