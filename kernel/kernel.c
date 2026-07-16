@@ -751,9 +751,11 @@ void kernel_main()
         Initialize hardware
     */
 
+    print("1\n");
+
     disk_init();
 
-
+    print("2\n");
 
     /*
         Load filesystem
@@ -764,7 +766,7 @@ void kernel_main()
 
     fs_init();
 
-
+    print("3\n");
 
 
     print("Welcome to Custos\n");
