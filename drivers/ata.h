@@ -1,12 +1,14 @@
+```c
 #ifndef ATA_H
 #define ATA_H
 
 #include "../include/types.h"
 #include "io.h"
 
-/* ============================= */
-/* ATA Primary Bus I/O Registers */
-/* ============================= */
+
+/*
+    ATA Primary Bus I/O Registers
+*/
 
 #define ATA_PRIMARY_DATA         0x1F0
 #define ATA_PRIMARY_ERROR        0x1F1
@@ -22,18 +24,20 @@
 #define ATA_PRIMARY_CONTROL      0x3F6
 #define ATA_PRIMARY_ALTSTATUS    0x3F6
 
-/* ============================= */
-/* ATA Commands                  */
-/* ============================= */
+
+/*
+    ATA Commands
+*/
 
 #define ATA_CMD_READ_SECTORS     0x20
 #define ATA_CMD_WRITE_SECTORS    0x30
 #define ATA_CMD_CACHE_FLUSH      0xE7
 #define ATA_CMD_IDENTIFY         0xEC
 
-/* ============================= */
-/* ATA Status Register Bits      */
-/* ============================= */
+
+/*
+    ATA Status Bits
+*/
 
 #define ATA_SR_ERR   0x01
 #define ATA_SR_DRQ   0x08
@@ -41,39 +45,53 @@
 #define ATA_SR_DRDY  0x40
 #define ATA_SR_BSY   0x80
 
-/* ============================= */
-/* Drive Selection               */
-/* ============================= */
+
+/*
+    Drive Selection
+*/
 
 #define ATA_MASTER 0xE0
 #define ATA_SLAVE  0xF0
 
-/* ============================= */
-/* Sector Size                   */
-/* ============================= */
+
+/*
+    Sector Size
+*/
 
 #define ATA_SECTOR_SIZE 512
 
-/* ============================= */
-/* Driver Functions              */
-/* ============================= */
 
-/* Initialize the ATA driver */
+/*
+    ATA Functions
+*/
+
 void ata_init(void);
 
-/* Detect if a drive is present */
 bool ata_detect(void);
 
-/* Wait until the drive is ready */
 bool ata_wait(void);
 
-/* Read one 512-byte sector */
-bool ata_read_sector(uint32_t lba, uint8_t *buffer);
 
-/* Write one 512-byte sector */
-bool ata_write_sector(uint32_t lba, const uint8_t *buffer);
+bool ata_read_sector(
+    uint32_t lba,
+    uint8_t *buffer
+);
 
-/* Flush the drive cache */
+
+bool ata_write_sector(
+    uint32_t lba,
+    const uint8_t *buffer
+);
+
+
 void ata_flush(void);
+
+
+/*
+    Disk information
+*/
+
+uint32_t ata_sector_count(void);
+
 
 #endif
