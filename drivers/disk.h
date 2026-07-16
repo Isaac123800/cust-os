@@ -1,3 +1,4 @@
+```c
 #ifndef DISK_H
 #define DISK_H
 
@@ -59,6 +60,14 @@ bool disk_write(
 */
 
 void disk_flush(void);
+
+
+
+/*
+    Get total disk sectors
+*/
+
+uint32_t disk_sector_count(void);
 
 
 
