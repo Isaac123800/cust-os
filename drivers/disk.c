@@ -1,3 +1,4 @@
+```c
 #include "disk.h"
 
 #include "ata.h"
@@ -66,4 +67,19 @@ bool disk_write(
 void disk_flush(void)
 {
     ata_flush();
+}
+
+
+
+
+
+/*
+    Return disk size
+
+    Number of 512-byte sectors
+*/
+
+uint32_t disk_sector_count(void)
+{
+    return ata_sector_count();
 }
