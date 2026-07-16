@@ -1,31 +1,31 @@
+```c
 #include "ata.h"
+
+
+static uint32_t total_sectors = 0;
 
 
 /*
     Wait until ATA drive is ready
 
-    Returns false if an error occurs
+    Returns false on timeout/error
 */
 
 bool ata_wait(void)
 {
     uint8_t status;
 
+    int timeout = 1000000;
 
-    /*
-        Wait for BSY to clear
-    */
 
     while((status = inb(ATA_PRIMARY_STATUS)) & ATA_SR_BSY)
     {
+        timeout--;
 
+        if(timeout <= 0)
+            return false;
     }
 
-
-
-    /*
-        Check errors
-    */
 
     if(status & ATA_SR_ERR)
         return false;
@@ -36,13 +36,17 @@ bool ata_wait(void)
 
 
 
-    /*
-        Wait for data request
+    timeout = 1000000;
 
-    */
 
-    while(!(status = inb(ATA_PRIMARY_STATUS) & ATA_SR_DRQ))
+    while(!(status = inb(ATA_PRIMARY_STATUS)) & ATA_SR_DRQ)
     {
+        timeout--;
+
+        if(timeout <= 0)
+            return false;
+
+
         if(status & ATA_SR_ERR)
             return false;
     }
@@ -58,17 +62,13 @@ bool ata_wait(void)
 /*
     Detect ATA drive
 
+    Reads IDENTIFY information
 */
 
 bool ata_detect(void)
 {
     uint8_t status;
 
-
-
-    /*
-        Select master drive
-    */
 
     outb(
         ATA_PRIMARY_HDDEVSEL,
@@ -79,10 +79,6 @@ bool ata_detect(void)
     io_wait();
 
 
-
-    /*
-        Send IDENTIFY command
-    */
 
     outb(
         ATA_PRIMARY_COMMAND,
@@ -96,18 +92,10 @@ bool ata_detect(void)
 
 
 
-    /*
-        No drive connected
-    */
-
     if(status == 0)
         return false;
 
 
-
-    /*
-        Wait for response
-    */
 
     while(1)
     {
@@ -125,13 +113,6 @@ bool ata_detect(void)
 
 
 
-    /*
-        Read identify data
-
-        We don't use it yet,
-        but the drive responded.
-    */
-
     uint16_t buffer[256];
 
 
@@ -140,6 +121,22 @@ bool ata_detect(void)
         buffer,
         256
     );
+
+
+
+    /*
+        IDENTIFY words:
+
+        word 60 = lower 16 bits
+        word 61 = upper 16 bits
+
+        LBA28 sector count
+    */
+
+    total_sectors =
+        ((uint32_t)buffer[61] << 16)
+        | buffer[60];
+
 
 
     return true;
@@ -164,9 +161,6 @@ void ata_init(void)
 
 /*
     Read one sector
-
-    LBA28 addressing
-
 */
 
 bool ata_read_sector(
@@ -180,10 +174,6 @@ bool ata_read_sector(
 
 
 
-    /*
-        Select drive and high LBA bits
-    */
-
     outb(
         ATA_PRIMARY_HDDEVSEL,
         ATA_MASTER |
@@ -191,16 +181,9 @@ bool ata_read_sector(
     );
 
 
-
     io_wait();
 
 
-
-    /*
-        Number of sectors
-
-        We read one sector
-    */
 
     outb(
         ATA_PRIMARY_SECCOUNT0,
@@ -227,10 +210,6 @@ bool ata_read_sector(
 
 
 
-    /*
-        Send read command
-    */
-
     outb(
         ATA_PRIMARY_COMMAND,
         ATA_CMD_READ_SECTORS
@@ -242,10 +221,6 @@ bool ata_read_sector(
         return false;
 
 
-
-    /*
-        Read 256 words = 512 bytes
-    */
 
     insw(
         ATA_PRIMARY_DATA,
@@ -261,10 +236,8 @@ bool ata_read_sector(
 
 
 
-
 /*
     Write one sector
-
 */
 
 bool ata_write_sector(
@@ -277,10 +250,6 @@ bool ata_write_sector(
         return false;
 
 
-
-    /*
-        Select drive
-    */
 
     outb(
         ATA_PRIMARY_HDDEVSEL,
@@ -318,10 +287,6 @@ bool ata_write_sector(
 
 
 
-    /*
-        Send write command
-    */
-
     outb(
         ATA_PRIMARY_COMMAND,
         ATA_CMD_WRITE_SECTORS
@@ -334,18 +299,11 @@ bool ata_write_sector(
 
 
 
-    /*
-        Write 512 bytes
-
-        256 words
-    */
-
     outsw(
         ATA_PRIMARY_DATA,
         buffer,
         256
     );
-
 
 
     ata_flush();
@@ -364,7 +322,6 @@ bool ata_write_sector(
 
 void ata_flush(void)
 {
-
     outb(
         ATA_PRIMARY_COMMAND,
         ATA_CMD_CACHE_FLUSH
@@ -372,4 +329,17 @@ void ata_flush(void)
 
 
     ata_wait();
+}
+
+
+
+
+
+/*
+    Return detected disk size
+*/
+
+uint32_t ata_sector_count(void)
+{
+    return total_sectors;
 }
