@@ -3,7 +3,6 @@
 #include "../drivers/disk.h"
 
 
-
 /*
     Global filesystem
 */
@@ -11,14 +10,36 @@
 FileSystem fs;
 
 
+/*
+    Next free data sector
+
+    Tracks the next available
+    location for file data.
+*/
+
+static uint32_t next_free_sector = FS_DATA_START;
+
+
+
+/*
+    External terminal output
+
+    Provided by kernel.
+*/
+
+extern void print(char *text);
+
+
 
 /*
     Internal memory helpers
 */
 
+
 static void memset(void *ptr, uint8_t value, uint32_t size)
 {
-    uint8_t *p = ptr;
+    uint8_t *p = (uint8_t *)ptr;
+
 
     for(uint32_t i = 0; i < size; i++)
     {
@@ -28,50 +49,31 @@ static void memset(void *ptr, uint8_t value, uint32_t size)
 
 
 
-static void strcpy(char *dest, char *src)
-{
-    int i = 0;
 
-    while(src[i])
+/*
+    Safe string copy
+
+    Prevents filename overflow.
+*/
+
+static void strcpy_safe(
+    char *dest,
+    char *src,
+    uint32_t max
+)
+{
+    uint32_t i = 0;
+
+
+    while(src[i] && i < max - 1)
     {
         dest[i] = src[i];
+
         i++;
     }
+
 
     dest[i] = 0;
-}
-
-
-
-static bool string_equal(char *a, char *b)
-{
-    int i = 0;
-
-    while(a[i] && b[i])
-    {
-        if(a[i] != b[i])
-            return false;
-
-        i++;
-    }
-
-    return a[i] == b[i];
-}
-
-
-
-static uint32_t sectors_needed(uint32_t size)
-{
-    uint32_t sectors;
-
-    sectors = size / FS_SECTOR_SIZE;
-
-
-    if(size % FS_SECTOR_SIZE)
-        sectors++;
-
-
-    return sectors;
 }
 
 
@@ -79,10 +81,58 @@ static uint32_t sectors_needed(uint32_t size)
 
 
 /*
+    Compare two strings
+*/
+
+static bool string_equal(
+    char *a,
+    char *b
+)
+{
+    uint32_t i = 0;
+
+
+    while(a[i] && b[i])
+    {
+        if(a[i] != b[i])
+        {
+            return false;
+        }
+
+
+        i++;
+    }
+
+
+    return a[i] == b[i];
+}
+
+
+
+
+
+/*
+    Calculate sectors needed
+*/
+
+static uint32_t sectors_needed(
+    uint32_t size
+)
+{
+    if(size == 0)
+    {
+        return 1;
+    }
+
+
+    return (size + FS_SECTOR_SIZE - 1)
+            / FS_SECTOR_SIZE;
+}
+/*
     Save superblock
 */
 
-static void save_superblock()
+static void save_superblock(void)
 {
     uint8_t buffer[FS_SECTOR_SIZE];
 
@@ -92,6 +142,17 @@ static void save_superblock()
         0,
         FS_SECTOR_SIZE
     );
+
+
+    /*
+        Safety check
+    */
+
+    if(sizeof(SuperBlock) > FS_SECTOR_SIZE)
+    {
+        return;
+    }
+
 
 
     uint8_t *data =
@@ -122,14 +183,22 @@ static void save_superblock()
     Load superblock
 */
 
-static bool load_superblock()
+static bool load_superblock(void)
 {
     uint8_t buffer[FS_SECTOR_SIZE];
+
 
 
     if(!disk_read(
         FS_SUPERBLOCK_SECTOR,
         buffer))
+    {
+        return false;
+    }
+
+
+
+    if(sizeof(SuperBlock) > FS_SECTOR_SIZE)
     {
         return false;
     }
@@ -156,18 +225,15 @@ static bool load_superblock()
     }
 
 
+
+
     return true;
-}
-
-
-
-
-
-/*
+    }
+    /*
     Save file table
 */
 
-static void save_file_table()
+static void save_file_table(void)
 {
     uint8_t buffer[FS_SECTOR_SIZE];
 
@@ -176,8 +242,10 @@ static void save_file_table()
         (uint8_t *)fs.files;
 
 
+
     uint32_t size =
-        sizeof(FileEntry) * FS_MAX_FILES;
+        sizeof(fs.files);
+
 
 
     uint32_t offset = 0;
@@ -203,15 +271,18 @@ static void save_file_table()
             offset < size;
             i++, offset++)
         {
-            buffer[i] = table[offset];
+            buffer[i] =
+                table[offset];
         }
 
 
 
-        disk_write(
+        if(!disk_write(
             sector,
-            buffer
-        );
+            buffer))
+        {
+            return;
+        }
 
 
         sector++;
@@ -226,7 +297,7 @@ static void save_file_table()
     Load file table
 */
 
-static void load_file_table()
+static bool load_file_table(void)
 {
     uint8_t buffer[FS_SECTOR_SIZE];
 
@@ -237,7 +308,7 @@ static void load_file_table()
 
 
     uint32_t size =
-        sizeof(FileEntry) * FS_MAX_FILES;
+        sizeof(fs.files);
 
 
 
@@ -252,10 +323,12 @@ static void load_file_table()
 
     while(offset < size)
     {
-        disk_read(
+        if(!disk_read(
             sector,
-            buffer
-        );
+            buffer))
+        {
+            return false;
+        }
 
 
 
@@ -264,18 +337,23 @@ static void load_file_table()
             offset < size;
             i++, offset++)
         {
-            table[offset] = buffer[i];
+            table[offset] =
+                buffer[i];
         }
 
 
 
         sector++;
     }
+
+
+
+    return true;
 }
-/*
+    /*
     Format filesystem
 
-    Creates a fresh filesystem
+    Creates a fresh filesystem.
 */
 
 void fs_format(void)
@@ -292,10 +370,6 @@ void fs_format(void)
         FS_MAGIC;
 
 
-
-    /*
-        Use real disk size
-    */
 
     fs.super.total_sectors =
         disk_sector_count();
@@ -343,7 +417,6 @@ void fs_format(void)
 
 bool fs_mount(void)
 {
-
     if(!load_superblock())
     {
         return false;
@@ -351,7 +424,10 @@ bool fs_mount(void)
 
 
 
-    load_file_table();
+    if(!load_file_table())
+    {
+        return false;
+    }
 
 
 
@@ -361,6 +437,7 @@ bool fs_mount(void)
 
 
     fs.mounted = true;
+
 
 
     return true;
@@ -376,7 +453,6 @@ bool fs_mount(void)
 
 void fs_init(void)
 {
-
     if(fs_mount())
     {
         return;
@@ -398,7 +474,9 @@ void fs_init(void)
 void fs_sync(void)
 {
     if(!fs.mounted)
+    {
         return;
+    }
 
 
 
@@ -407,11 +485,6 @@ void fs_sync(void)
 
     save_file_table();
 }
-
-
-
-
-
 /*
     Find file by name
 
@@ -422,6 +495,13 @@ void fs_sync(void)
 
 int fs_find(char *name)
 {
+    if(name == 0)
+    {
+        return -1;
+    }
+
+
+
     for(int i = 0;
         i < FS_MAX_FILES;
         i++)
@@ -438,6 +518,7 @@ int fs_find(char *name)
     }
 
 
+
     return -1;
 }
 
@@ -449,7 +530,7 @@ int fs_find(char *name)
     Find unused file entry
 */
 
-static int find_free_entry()
+static int find_free_entry(void)
 {
     for(int i = 0;
         i < FS_MAX_FILES;
@@ -462,6 +543,7 @@ static int find_free_entry()
     }
 
 
+
     return -1;
 }
 
@@ -470,38 +552,71 @@ static int find_free_entry()
 
 
 /*
-    Basic sector allocator
+    Allocate sectors
+
+    Returns the first sector
+    of the allocated block.
 */
 
-static uint32_t next_free_sector =
-    FS_DATA_START;
-
-
-
-static uint32_t allocate_sector()
+static uint32_t allocate_sectors(
+    uint32_t count
+)
 {
-    if(next_free_sector >= fs.super.total_sectors)
+    if(count == 0)
     {
         return 0;
     }
 
 
-    return next_free_sector++;
-}
+
+    if(next_free_sector + count >
+       fs.super.total_sectors)
+    {
+        return 0;
+    }
 
 
 
+    uint32_t start =
+        next_free_sector;
 
 
-/*
+
+    next_free_sector += count;
+
+
+
+    if(fs.super.free_blocks >= count)
+    {
+        fs.super.free_blocks -= count;
+    }
+    else
+    {
+        fs.super.free_blocks = 0;
+    }
+
+
+
+    return start;
+}/*
     Create file
 
-    Equivalent to shell:
+    Equivalent to:
     touch filename
 */
 
 bool fs_create(char *name)
 {
+    if(name == 0)
+    {
+        return false;
+    }
+
+
+
+    /*
+        Do not allow duplicate files
+    */
 
     if(fs_find(name) >= 0)
     {
@@ -535,9 +650,10 @@ bool fs_create(char *name)
 
 
 
-    strcpy(
+    strcpy_safe(
         file->name,
-        name
+        name,
+        FS_FILENAME_LENGTH
     );
 
 
@@ -552,14 +668,22 @@ bool fs_create(char *name)
 
 
 
+    /*
+        Reserve one sector initially.
+
+        This gives empty files
+        a valid disk location.
+    */
+
     file->start_sector =
-        allocate_sector();
+        allocate_sectors(1);
 
 
 
     if(file->start_sector == 0)
     {
-        file->used = FILE_UNUSED;
+        file->used =
+            FILE_UNUSED;
 
         return false;
     }
@@ -572,11 +696,6 @@ bool fs_create(char *name)
 
     return true;
 }
-
-
-
-
-
 /*
     Write data to file
 */
@@ -587,6 +706,13 @@ bool fs_write(
     uint32_t size
 )
 {
+    if(name == 0 || data == 0)
+    {
+        return false;
+    }
+
+
+
     int index =
         fs_find(name);
 
@@ -616,8 +742,25 @@ bool fs_write(
 
 
 
-    uint32_t sector =
-        file->start_sector;
+    /*
+        Allocate enough space
+        for the file.
+    */
+
+    uint32_t start =
+        allocate_sectors(sectors);
+
+
+
+    if(start == 0)
+    {
+        return false;
+    }
+
+
+
+    file->start_sector =
+        start;
 
 
 
@@ -633,7 +776,6 @@ bool fs_write(
         s < sectors;
         s++)
     {
-
         memset(
             buffer,
             0,
@@ -654,7 +796,7 @@ bool fs_write(
 
 
         if(!disk_write(
-            sector + s,
+            start + s,
             buffer))
         {
             return false;
@@ -674,7 +816,7 @@ bool fs_write(
 
     return true;
 }
-/*
+    /*
     Read file data
 
     Loads file contents
@@ -686,6 +828,13 @@ bool fs_read(
     char *buffer
 )
 {
+    if(name == 0 || buffer == 0)
+    {
+        return false;
+    }
+
+
+
     int index =
         fs_find(name);
 
@@ -703,18 +852,27 @@ bool fs_read(
 
 
 
+    if(file->used != FILE_USED)
+    {
+        return false;
+    }
+
+
+
     uint32_t size =
         file->size;
 
 
 
+    if(size > FS_MAX_FILE_SIZE)
+    {
+        return false;
+    }
+
+
+
     uint32_t sectors =
         sectors_needed(size);
-
-
-
-    uint32_t sector =
-        file->start_sector;
 
 
 
@@ -730,9 +888,8 @@ bool fs_read(
         s < sectors;
         s++)
     {
-
         if(!disk_read(
-            sector + s,
+            file->start_sector + s,
             temp))
         {
             return false;
@@ -755,13 +912,9 @@ bool fs_read(
     buffer[size] = 0;
 
 
+
     return true;
 }
-
-
-
-
-
 /*
     Delete file
 
@@ -771,6 +924,13 @@ bool fs_read(
 
 bool fs_delete(char *name)
 {
+    if(name == 0)
+    {
+        return false;
+    }
+
+
+
     int index =
         fs_find(name);
 
@@ -783,20 +943,15 @@ bool fs_delete(char *name)
 
 
 
-    FileEntry *file =
-        &fs.files[index];
-
-
-
     memset(
-        file,
+        &fs.files[index],
         0,
         sizeof(FileEntry)
     );
 
 
 
-    file->used =
+    fs.files[index].used =
         FILE_UNUSED;
 
 
@@ -818,6 +973,13 @@ bool fs_delete(char *name)
 
 uint32_t fs_size(char *name)
 {
+    if(name == 0)
+    {
+        return 0;
+    }
+
+
+
     int index =
         fs_find(name);
 
@@ -830,13 +992,15 @@ uint32_t fs_size(char *name)
 
 
 
+    if(fs.files[index].used != FILE_USED)
+    {
+        return 0;
+    }
+
+
+
     return fs.files[index].size;
 }
-
-
-
-
-
 /*
     List files
 
@@ -845,6 +1009,9 @@ uint32_t fs_size(char *name)
 
 void fs_list(void)
 {
+    bool found = false;
+
+
     for(int i = 0;
         i < FS_MAX_FILES;
         i++)
@@ -857,6 +1024,21 @@ void fs_list(void)
 
 
             print("\n");
+
+
+            found = true;
         }
     }
+
+
+
+    if(!found)
+    {
+        print("No files\n");
+    }
+}
+
+
+
+    return true;
 }
