@@ -743,124 +743,33 @@ void run_command(char *input)
 
 void kernel_main()
 {
-
     clear();
 
+
+    print("Starting CustOS Installer...\n");
 
 
     /*
         Initialize hardware
     */
 
-    print("1\n");
-
     disk_init();
 
-    print("2\n");
 
     /*
-        Load filesystem
-
-        If no filesystem exists,
-        it will format a new one.
+        Start installer
     */
 
-    fs_init();
-
-    print("3\n");
-
-
-    print("Welcome to Custos\n");
-
-    print("Filesystem loaded\n");
-
-    print("Type commands:\n\n>");
+    installer_start();
 
 
 
-
-
-    char input[100];
-
-
-    int pos = 0;
-
-
-
-
+    /*
+        Stop after installer finishes
+    */
 
     while(1)
     {
 
-        char c =
-            keyboard();
-
-
-
-
-        /*
-            Enter key
-        */
-
-        if(c == 13)
-        {
-
-            input[pos] = 0;
-
-
-
-            run_command(input);
-
-
-
-            pos = 0;
-
-
-
-            print("\n>");
-        }
-
-
-
-
-
-        /*
-            Backspace
-        */
-
-        else if(c == 8)
-        {
-
-            if(pos > 0)
-            {
-                pos--;
-
-
-                input[pos] = 0;
-
-
-                backspace();
-            }
-        }
-
-
-
-
-
-        /*
-            Normal character
-        */
-
-        else if(c)
-        {
-
-            if(pos < 99)
-            {
-                input[pos++] = c;
-
-
-                putchar(c);
-            }
-        }
     }
 }
