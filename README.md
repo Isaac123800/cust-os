@@ -3,306 +3,50 @@ CustOS- The operating system where you have full control. You can use this in a 
 
 Custos commands are used through the command prompt. The credits command displays the creators of Custos, Isaac Polomski, Roshan Inbasekar and Kirthis Kirubaventhan. The cmdlist command shows every available command and whether it is enabled, disabled, or protected; it cannot be disabled. The echo <text> command prints any text you enter back onto the screen, for example echo Hello displays Hello. The clear command clears the screen. The disable -<command> command disables a command so it cannot be used until it is enabled again, while the enable -<command> command restores a disabled command. The cmdlist, enable, and disable commands are protected and cannot be disabled. If you try to use a command that has been disabled, Custos will display error: Command not Found or not Enabled.
 
-/KERNEL.BIN;1
-/boot
-/boot.cat;1
-/boot/grub
-/boot/kernel.bin;1
-/boot/grub/fonts
-/boot/grub/grub.cfg;1
-/boot/grub/i386-pc
-/boot/grub/locale
-/boot/grub/roms
-/boot/grub/fonts/unicode.pf2;1
-/boot/grub/i386-pc/915resol.mod;1
-/boot/grub/i386-pc/acpi.mod;1
-/boot/grub/i386-pc/adler32.mod;1
-/boot/grub/i386-pc/affs.mod;1
-/boot/grub/i386-pc/afs.mod;1
-/boot/grub/i386-pc/afsplitt.mod;1
-/boot/grub/i386-pc/ahci.mod;1
-/boot/grub/i386-pc/all_vide.mod;1
-/boot/grub/i386-pc/aout.mod;1
-/boot/grub/i386-pc/archelp.mod;1
-/boot/grub/i386-pc/at_keybo.mod;1
-/boot/grub/i386-pc/ata.mod;1
-/boot/grub/i386-pc/backtrac.mod;1
-/boot/grub/i386-pc/bfs.mod;1
-/boot/grub/i386-pc/biosdisk.mod;1
-/boot/grub/i386-pc/bitmap.mod;1
-/boot/grub/i386-pc/bitmap_s.mod;1
-/boot/grub/i386-pc/blocklis.mod;1
-/boot/grub/i386-pc/boot.mod;1
-/boot/grub/i386-pc/bsd.mod;1
-/boot/grub/i386-pc/bswap_te.mod;1
-/boot/grub/i386-pc/btrfs.mod;1
-/boot/grub/i386-pc/bufio.mod;1
-/boot/grub/i386-pc/cat.mod;1
-/boot/grub/i386-pc/cbfs.mod;1
-/boot/grub/i386-pc/cbls.mod;1
-/boot/grub/i386-pc/cbmemc.mod;1
-/boot/grub/i386-pc/cbtable.mod;1
-/boot/grub/i386-pc/cbtime.mod;1
-/boot/grub/i386-pc/chain.mod;1
-/boot/grub/i386-pc/cmdline_.mod;1
-/boot/grub/i386-pc/cmosdump.mod;1
-/boot/grub/i386-pc/cmostest.mod;1
-/boot/grub/i386-pc/cmp.mod;1
-/boot/grub/i386-pc/cmp_test.mod;1
-/boot/grub/i386-pc/command.lst;1
-/boot/grub/i386-pc/configfi.mod;1
-/boot/grub/i386-pc/cpio.mod;1
-/boot/grub/i386-pc/cpio_be.mod;1
-/boot/grub/i386-pc/cpuid.mod;1
-/boot/grub/i386-pc/crc64.mod;1
-/boot/grub/i386-pc/crypto.lst;1
-/boot/grub/i386-pc/crypto.mod;1
-/boot/grub/i386-pc/cryptodi.mod;1
-/boot/grub/i386-pc/cs5536.mod;1
-/boot/grub/i386-pc/ctz_test.mod;1
-/boot/grub/i386-pc/date.mod;1
-/boot/grub/i386-pc/datehook.mod;1
-/boot/grub/i386-pc/datetime.mod;1
-/boot/grub/i386-pc/disk.mod;1
-/boot/grub/i386-pc/diskfilt.mod;1
-/boot/grub/i386-pc/div.mod;1
-/boot/grub/i386-pc/div_test.mod;1
-/boot/grub/i386-pc/dm_nv.mod;1
-/boot/grub/i386-pc/drivemap.mod;1
-/boot/grub/i386-pc/echo.mod;1
-/boot/grub/i386-pc/efiemu.mod;1
-/boot/grub/i386-pc/efiemu32.o;1
-/boot/grub/i386-pc/efiemu64.o;1
-/boot/grub/i386-pc/ehci.mod;1
-/boot/grub/i386-pc/elf.mod;1
-/boot/grub/i386-pc/eltorito.img;1
-/boot/grub/i386-pc/eval.mod;1
-/boot/grub/i386-pc/exfat.mod;1
-/boot/grub/i386-pc/exfctest.mod;1
-/boot/grub/i386-pc/ext2.mod;1
-/boot/grub/i386-pc/extcmd.mod;1
-/boot/grub/i386-pc/f2fs.mod;1
-/boot/grub/i386-pc/fat.mod;1
-/boot/grub/i386-pc/file.mod;1
-/boot/grub/i386-pc/font.mod;1
-/boot/grub/i386-pc/freedos.mod;1
-/boot/grub/i386-pc/fs.lst;1
-/boot/grub/i386-pc/fshelp.mod;1
-/boot/grub/i386-pc/function.mod;1
-/boot/grub/i386-pc/gcry_arc.mod;1
-/boot/grub/i386-pc/gcry_blo.mod;1
-/boot/grub/i386-pc/gcry_cam.mod;1
-/boot/grub/i386-pc/gcry_cas.mod;1
-/boot/grub/i386-pc/gcry_crc.mod;1
-/boot/grub/i386-pc/gcry_des.mod;1
-/boot/grub/i386-pc/gcry_dsa.mod;1
-/boot/grub/i386-pc/gcry_ide.mod;1
-/boot/grub/i386-pc/gcry_md4.mod;1
-/boot/grub/i386-pc/gcry_md5.mod;1
-/boot/grub/i386-pc/gcry_rfc.mod;1
-/boot/grub/i386-pc/gcry_rij.mod;1
-/boot/grub/i386-pc/gcry_rmd.mod;1
-/boot/grub/i386-pc/gcry_rsa.mod;1
-/boot/grub/i386-pc/gcry_see.mod;1
-/boot/grub/i386-pc/gcry_ser.mod;1
-/boot/grub/i386-pc/gcry_sh0.mod;1
-/boot/grub/i386-pc/gcry_sh1.mod;1
-/boot/grub/i386-pc/gcry_sh2.mod;1
-/boot/grub/i386-pc/gcry_tig.mod;1
-/boot/grub/i386-pc/gcry_two.mod;1
-/boot/grub/i386-pc/gcry_whi.mod;1
-/boot/grub/i386-pc/gdb.mod;1
-/boot/grub/i386-pc/geli.mod;1
-/boot/grub/i386-pc/gettext.mod;1
-/boot/grub/i386-pc/gfxmenu.mod;1
-/boot/grub/i386-pc/gfxterm.mod;1
-/boot/grub/i386-pc/gfxterm0.mod;1
-/boot/grub/i386-pc/gfxterm1.mod;1
-/boot/grub/i386-pc/gptsync.mod;1
-/boot/grub/i386-pc/gzio.mod;1
-/boot/grub/i386-pc/halt.mod;1
-/boot/grub/i386-pc/hashsum.mod;1
-/boot/grub/i386-pc/hdparm.mod;1
-/boot/grub/i386-pc/hello.mod;1
-/boot/grub/i386-pc/help.mod;1
-/boot/grub/i386-pc/hexdump.mod;1
-/boot/grub/i386-pc/hfs.mod;1
-/boot/grub/i386-pc/hfsplus.mod;1
-/boot/grub/i386-pc/hfsplusc.mod;1
-/boot/grub/i386-pc/http.mod;1
-/boot/grub/i386-pc/hwmatch.mod;1
-/boot/grub/i386-pc/iorw.mod;1
-/boot/grub/i386-pc/iso9660.mod;1
-/boot/grub/i386-pc/jfs.mod;1
-/boot/grub/i386-pc/jpeg.mod;1
-/boot/grub/i386-pc/json.mod;1
-/boot/grub/i386-pc/keylayou.mod;1
-/boot/grub/i386-pc/keystatu.mod;1
-/boot/grub/i386-pc/ldm.mod;1
-/boot/grub/i386-pc/legacy_p.mod;1
-/boot/grub/i386-pc/legacycf.mod;1
-/boot/grub/i386-pc/linux.mod;1
-/boot/grub/i386-pc/linux16.mod;1
-/boot/grub/i386-pc/loadenv.mod;1
-/boot/grub/i386-pc/loopback.mod;1
-/boot/grub/i386-pc/ls.mod;1
-/boot/grub/i386-pc/lsacpi.mod;1
-/boot/grub/i386-pc/lsapm.mod;1
-/boot/grub/i386-pc/lsmmap.mod;1
-/boot/grub/i386-pc/lspci.mod;1
-/boot/grub/i386-pc/luks.mod;1
-/boot/grub/i386-pc/luks2.mod;1
-/boot/grub/i386-pc/lvm.mod;1
-/boot/grub/i386-pc/lzopio.mod;1
-/boot/grub/i386-pc/macbless.mod;1
-/boot/grub/i386-pc/macho.mod;1
-/boot/grub/i386-pc/mda_text.mod;1
-/boot/grub/i386-pc/mdraid00.mod;1
-/boot/grub/i386-pc/mdraid01.mod;1
-/boot/grub/i386-pc/mdraid1x.mod;1
-/boot/grub/i386-pc/memdisk.mod;1
-/boot/grub/i386-pc/memrw.mod;1
-/boot/grub/i386-pc/minicmd.mod;1
-/boot/grub/i386-pc/minix.mod;1
-/boot/grub/i386-pc/minix2.mod;1
-/boot/grub/i386-pc/minix2_b.mod;1
-/boot/grub/i386-pc/minix3.mod;1
-/boot/grub/i386-pc/minix3_b.mod;1
-/boot/grub/i386-pc/minix_be.mod;1
-/boot/grub/i386-pc/mmap.mod;1
-/boot/grub/i386-pc/moddep.lst;1
-/boot/grub/i386-pc/modinfo.sh;1
-/boot/grub/i386-pc/morse.mod;1
-/boot/grub/i386-pc/mpi.mod;1
-/boot/grub/i386-pc/msdospar.mod;1
-/boot/grub/i386-pc/mul_test.mod;1
-/boot/grub/i386-pc/multibo0.mod;1
-/boot/grub/i386-pc/multibo1.mod;1
-/boot/grub/i386-pc/nativedi.mod;1
-/boot/grub/i386-pc/net.mod;1
-/boot/grub/i386-pc/newc.mod;1
-/boot/grub/i386-pc/nilfs2.mod;1
-/boot/grub/i386-pc/normal.mod;1
-/boot/grub/i386-pc/ntfs.mod;1
-/boot/grub/i386-pc/ntfscomp.mod;1
-/boot/grub/i386-pc/ntldr.mod;1
-/boot/grub/i386-pc/odc.mod;1
-/boot/grub/i386-pc/offsetio.mod;1
-/boot/grub/i386-pc/ohci.mod;1
-/boot/grub/i386-pc/part_aco.mod;1
-/boot/grub/i386-pc/part_ami.mod;1
-/boot/grub/i386-pc/part_app.mod;1
-/boot/grub/i386-pc/part_bsd.mod;1
-/boot/grub/i386-pc/part_dfl.mod;1
-/boot/grub/i386-pc/part_dvh.mod;1
-/boot/grub/i386-pc/part_gpt.mod;1
-/boot/grub/i386-pc/part_msd.mod;1
-/boot/grub/i386-pc/part_pla.mod;1
-/boot/grub/i386-pc/part_su0.mod;1
-/boot/grub/i386-pc/part_su1.mod;1
-/boot/grub/i386-pc/partmap.lst;1
-/boot/grub/i386-pc/parttool.lst;1
-/boot/grub/i386-pc/parttool.mod;1
-/boot/grub/i386-pc/passwor0.mod;1
-/boot/grub/i386-pc/passwor1.mod;1
-/boot/grub/i386-pc/pata.mod;1
-/boot/grub/i386-pc/pbkdf2.mod;1
-/boot/grub/i386-pc/pbkdf2_t.mod;1
-/boot/grub/i386-pc/pci.mod;1
-/boot/grub/i386-pc/pcidump.mod;1
-/boot/grub/i386-pc/pgp.mod;1
-/boot/grub/i386-pc/plainmou.mod;1
-/boot/grub/i386-pc/plan9.mod;1
-/boot/grub/i386-pc/play.mod;1
-/boot/grub/i386-pc/png.mod;1
-/boot/grub/i386-pc/priority.mod;1
-/boot/grub/i386-pc/probe.mod;1
-/boot/grub/i386-pc/procfs.mod;1
-/boot/grub/i386-pc/progress.mod;1
-/boot/grub/i386-pc/pxe.mod;1
-/boot/grub/i386-pc/pxechain.mod;1
-/boot/grub/i386-pc/raid5rec.mod;1
-/boot/grub/i386-pc/raid6rec.mod;1
-/boot/grub/i386-pc/random.mod;1
-/boot/grub/i386-pc/rdmsr.mod;1
-/boot/grub/i386-pc/read.mod;1
-/boot/grub/i386-pc/reboot.mod;1
-/boot/grub/i386-pc/regexp.mod;1
-/boot/grub/i386-pc/reiserfs.mod;1
-/boot/grub/i386-pc/relocato.mod;1
-/boot/grub/i386-pc/romfs.mod;1
-/boot/grub/i386-pc/scsi.mod;1
-/boot/grub/i386-pc/search.mod;1
-/boot/grub/i386-pc/search_0.mod;1
-/boot/grub/i386-pc/search_1.mod;1
-/boot/grub/i386-pc/search_l.mod;1
-/boot/grub/i386-pc/sendkey.mod;1
-/boot/grub/i386-pc/serial.mod;1
-/boot/grub/i386-pc/setjmp.mod;1
-/boot/grub/i386-pc/setjmp_t.mod;1
-/boot/grub/i386-pc/setpci.mod;1
-/boot/grub/i386-pc/sfs.mod;1
-/boot/grub/i386-pc/shift_te.mod;1
-/boot/grub/i386-pc/signatur.mod;1
-/boot/grub/i386-pc/sleep.mod;1
-/boot/grub/i386-pc/sleep_te.mod;1
-/boot/grub/i386-pc/smbios.mod;1
-/boot/grub/i386-pc/spkmodem.mod;1
-/boot/grub/i386-pc/squash4.mod;1
-/boot/grub/i386-pc/strtoull.mod;1
-/boot/grub/i386-pc/syslinux.mod;1
-/boot/grub/i386-pc/tar.mod;1
-/boot/grub/i386-pc/terminal.lst;1
-/boot/grub/i386-pc/terminal.mod;1
-/boot/grub/i386-pc/terminfo.mod;1
-/boot/grub/i386-pc/test.mod;1
-/boot/grub/i386-pc/test_blo.mod;1
-/boot/grub/i386-pc/testload.mod;1
-/boot/grub/i386-pc/testspee.mod;1
-/boot/grub/i386-pc/tftp.mod;1
-/boot/grub/i386-pc/tga.mod;1
-/boot/grub/i386-pc/time.mod;1
-/boot/grub/i386-pc/tr.mod;1
-/boot/grub/i386-pc/trig.mod;1
-/boot/grub/i386-pc/true.mod;1
-/boot/grub/i386-pc/truecryp.mod;1
-/boot/grub/i386-pc/udf.mod;1
-/boot/grub/i386-pc/ufs1.mod;1
-/boot/grub/i386-pc/ufs1_be.mod;1
-/boot/grub/i386-pc/ufs2.mod;1
-/boot/grub/i386-pc/uhci.mod;1
-/boot/grub/i386-pc/usb.mod;1
-/boot/grub/i386-pc/usb_keyb.mod;1
-/boot/grub/i386-pc/usbms.mod;1
-/boot/grub/i386-pc/usbseri0.mod;1
-/boot/grub/i386-pc/usbseri1.mod;1
-/boot/grub/i386-pc/usbseri2.mod;1
-/boot/grub/i386-pc/usbseri3.mod;1
-/boot/grub/i386-pc/usbtest.mod;1
-/boot/grub/i386-pc/vbe.mod;1
-/boot/grub/i386-pc/verifier.mod;1
-/boot/grub/i386-pc/vga.mod;1
-/boot/grub/i386-pc/vga_text.mod;1
-/boot/grub/i386-pc/video.lst;1
-/boot/grub/i386-pc/video.mod;1
-/boot/grub/i386-pc/video_bo.mod;1
-/boot/grub/i386-pc/video_ci.mod;1
-/boot/grub/i386-pc/video_co.mod;1
-/boot/grub/i386-pc/video_fb.mod;1
-/boot/grub/i386-pc/videoinf.mod;1
-/boot/grub/i386-pc/videote0.mod;1
-/boot/grub/i386-pc/videote1.mod;1
-/boot/grub/i386-pc/wrmsr.mod;1
-/boot/grub/i386-pc/xfs.mod;1
-/boot/grub/i386-pc/xnu.mod;1
-/boot/grub/i386-pc/xnu_uui0.mod;1
-/boot/grub/i386-pc/xnu_uui1.mod;1
-/boot/grub/i386-pc/xzio.mod;1
-/boot/grub/i386-pc/zfs.mod;1
-/boot/grub/i386-pc/zfscrypt.mod;1
-/boot/grub/i386-pc/zfsinfo.mod;1
-/boot/grub/i386-pc/zstd.mod;1
-/boot/grub/locale/en@quot.mo;1
-/boot/grub/locale/en_AU.mo;1
-/boot/grub/locale/en_CA.mo;1
-/boot/grub/locale/en_GB.mo;1
+mkdir -p build
+# Bootloader
+nasm -f elf32 boot/boot.asm -o build/boot.o
+# Kernel
+gcc -m32 -ffreestanding -Iinclude -I. -c kernel/kernel.c -o build/kernel.o
+# Installer
+gcc -m32 -ffreestanding -Iinclude -I. -c installer/installer.c -o build/installer.o
+gcc -m32 -ffreestanding -Iinclude -I. -c installer/install.c -o build/install.o
+gcc -m32 -ffreestanding -Iinclude -I. -c installer/grub_install.c -o build/grub_install.o
+# Drivers
+gcc -m32 -ffreestanding -Iinclude -I. -c drivers/io.c -o build/io.o
+gcc -m32 -ffreestanding -Iinclude -I. -c drivers/ata.c -o build/ata.o
+gcc -m32 -ffreestanding -Iinclude -I. -c drivers/disk.c -o build/disk.o
+gcc -m32 -ffreestanding -Iinclude -I. -c drivers/cdrom.c -o build/cdrom.o
+# Filesystem
+gcc -m32 -ffreestanding -Iinclude -I. -c fs/filesystem.c -o build/filesystem.o
+In file included from fs/filesystem.h:4,
+                 from fs/filesystem.c:1:
+fs/filesystem.c: In function ‘fs_list’:
+fs/../include/types.h:21:14: warning: ‘return’ with a value, in function returning void
+   21 | #define true 1
+      |              ^
+fs/filesystem.c:1043:12: note: in expansion of macro ‘true’
+ 1043 |     return true;
+      |            ^~~~
+fs/filesystem.c:1010:6: note: declared here
+ 1010 | void fs_list(void)
+      |      ^~~~~~~
+gcc -m32 -ffreestanding -Iinclude -I. -c fs/iso9660.c -o build/iso9660.o
+# Link kernel
+ld -m elf_i386 -T linker.ld \
+	build/boot.o \
+	build/kernel.o \
+	build/installer.o \
+	build/install.o \
+	build/grub_install.o \
+	build/io.o \
+	build/ata.o \
+	build/disk.o \
+	build/cdrom.o \
+	build/filesystem.o \
+	build/iso9660.o \
+	-o build/kernel.bin
+ld: warning: build/kernel.bin has a LOAD segment with RWX permissions
+ld: build/install.o: in function `install_system':
+install.c:(.text+0x60): undefined reference to `iso_list_root'
+make: *** [Makefile:30: all] Error 1
