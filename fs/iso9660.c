@@ -134,7 +134,7 @@ bool iso_read_file(
 
 
 
-    uint8_t sector[ISO_SECTOR_SIZE];
+    static uint8_t sector[ISO_SECTOR_SIZE];
 
 
 
