@@ -1,6 +1,7 @@
 #include "install.h"
 
 #include "../fs/filesystem.h"
+#include "grub_install.h"
 
 
 extern void print(char *text);
