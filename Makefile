@@ -57,19 +57,22 @@ all:
 
 
 	# Create ISO structure
+	rm -rf iso
+
 	mkdir -p iso/boot/grub
-	mkdir -p iso/files
 
 
-	# Kernel for GRUB boot
+
+	# GRUB kernel
 	cp build/kernel.bin iso/boot/kernel.bin
 
 
-	# Kernel for installer copying
-	cp build/kernel.bin iso/files/KERNEL.BIN
+	# Installer source file
+	cp build/kernel.bin iso/KERNEL.BIN
 
 
-	# GRUB config
+
+	# GRUB configuration
 	cp grub/grub.cfg iso/boot/grub/grub.cfg
 
 
