@@ -7,6 +7,7 @@
 
 #include "drivers/disk.h"
 #include "fs/filesystem.h"
+#include "installer/installer.h"
 
 
 #define VIDEO_MEMORY 0xB8000
