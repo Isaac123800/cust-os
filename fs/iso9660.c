@@ -35,7 +35,7 @@ static uint32_t root_size = 0;
 
 
 
-static bool string_equal(
+static bool equal(
     char *a,
     char *b
 )
@@ -57,9 +57,7 @@ static bool string_equal(
 
 
 
-static void remove_version(
-    char *name
-)
+static void clean_name(char *name)
 {
     while(*name)
     {
@@ -83,9 +81,6 @@ void iso_init(void)
     static uint8_t buffer[ISO_SECTOR_SIZE];
 
 
-    /*
-        Primary Volume Descriptor
-    */
 
     if(!cdrom_read_sector(
         16,
@@ -96,10 +91,6 @@ void iso_init(void)
     }
 
 
-
-    /*
-        Check ISO9660 magic
-    */
 
     if(buffer[1] != 'C' ||
        buffer[2] != 'D' ||
@@ -122,7 +113,6 @@ void iso_init(void)
         root->extent;
 
 
-
     root_size =
         root->size;
 
@@ -130,6 +120,108 @@ void iso_init(void)
 
     print("ISO9660 detected\n");
 }
+
+
+
+
+
+
+
+void iso_list_root(void)
+{
+    if(root_sector == 0)
+        iso_init();
+
+
+
+    static uint8_t sector[ISO_SECTOR_SIZE];
+
+
+
+    uint32_t current =
+        root_sector;
+
+
+
+    uint32_t left =
+        root_size;
+
+
+
+    print("ISO ROOT:\n");
+
+
+
+    while(left)
+    {
+
+        if(!cdrom_read_sector(
+            current,
+            sector))
+            return;
+
+
+
+        uint32_t offset = 0;
+
+
+
+        while(offset < ISO_SECTOR_SIZE)
+        {
+
+            DirectoryEntry *entry =
+                (DirectoryEntry *)(sector + offset);
+
+
+
+            if(entry->length == 0)
+                break;
+
+
+
+            char name[128];
+
+            uint8_t len =
+                entry->name_length;
+
+
+
+            if(len > 127)
+                len = 127;
+
+
+
+            for(int i=0;i<len;i++)
+            {
+                name[i] =
+                    sector[offset+33+i];
+            }
+
+
+            name[len] = 0;
+
+
+
+            print(name);
+            print("\n");
+
+
+
+            offset += entry->length;
+        }
+
+
+
+        current++;
+
+
+        if(left >= ISO_SECTOR_SIZE)
+            left -= ISO_SECTOR_SIZE;
+        else
+            left = 0;
+    }
+}
+
 
 
 
@@ -145,13 +237,7 @@ bool iso_read_file(
 {
 
     if(root_sector == 0)
-    {
         iso_init();
-
-
-        if(root_sector == 0)
-            return false;
-    }
 
 
 
@@ -159,26 +245,22 @@ bool iso_read_file(
 
 
 
-    uint32_t remaining =
+    uint32_t current =
+        root_sector;
+
+
+    uint32_t left =
         root_size;
 
 
 
-    uint32_t current_sector =
-        root_sector;
-
-
-
-
-    while(remaining > 0)
+    while(left)
     {
 
         if(!cdrom_read_sector(
-            current_sector,
+            current,
             sector))
-        {
             return false;
-        }
 
 
 
@@ -201,8 +283,6 @@ bool iso_read_file(
 
             char filename[128];
 
-
-
             uint8_t len =
                 entry->name_length;
 
@@ -213,41 +293,26 @@ bool iso_read_file(
 
 
 
-            for(int i = 0;
-                i < len;
-                i++)
+            for(int i=0;i<len;i++)
             {
                 filename[i] =
-                    sector[offset + 33 + i];
+                    sector[offset+33+i];
             }
-
 
 
             filename[len] = 0;
 
 
 
-            remove_version(filename);
+            clean_name(filename);
 
 
 
-
-            if(string_equal(
-                filename,
-                name))
+            if(equal(filename,name))
             {
-
-                print("Found file: ");
-
-                print(filename);
-
-                print("\n");
-
-
 
                 uint32_t file_sector =
                     entry->extent;
-
 
 
                 uint32_t file_size =
@@ -272,25 +337,19 @@ bool iso_read_file(
 
 
 
-
-                for(uint32_t s = 0;
-                    s < sectors;
-                    s++)
+                for(uint32_t s=0;s<sectors;s++)
                 {
 
                     if(!cdrom_read_sector(
-                        file_sector + s,
+                        file_sector+s,
                         sector))
-                    {
                         return false;
-                    }
 
 
 
-
-                    for(uint32_t i = 0;
-                        i < ISO_SECTOR_SIZE &&
-                        copied < file_size;
+                    for(uint32_t i=0;
+                        i<ISO_SECTOR_SIZE &&
+                        copied<file_size;
                         i++)
                     {
                         buffer[copied++] =
@@ -310,19 +369,16 @@ bool iso_read_file(
 
 
 
-        current_sector++;
+        current++;
 
 
 
-        if(remaining >= ISO_SECTOR_SIZE)
-            remaining -= ISO_SECTOR_SIZE;
+        if(left >= ISO_SECTOR_SIZE)
+            left -= ISO_SECTOR_SIZE;
         else
-            remaining = 0;
+            left = 0;
     }
 
-
-
-    print("File not found in ISO\n");
 
 
     return false;
