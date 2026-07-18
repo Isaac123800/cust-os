@@ -15,25 +15,23 @@
 #define ATA_PRIMARY_STATUS      0x1F7
 
 
-#define ATA_CMD_PACKET          0xA0
-#define ATA_CMD_IDENTIFY_PACKET 0xA1
-
-
-#define ATA_SR_BSY 0x80
-#define ATA_SR_DRQ 0x08
-#define ATA_SR_ERR 0x01
+#define ATA_SR_BSY  0x80
+#define ATA_SR_DRQ  0x08
+#define ATA_SR_ERR  0x01
 
 
 
-static bool cdrom_found = false;
+#define ATAPI_CMD_PACKET 0xA0
+#define ATAPI_CMD_READ10 0x28
 
 
 
-static bool cdrom_wait()
+static bool wait_ready()
 {
-    uint8_t status;
-
     int timeout = 1000000;
+
+
+    uint8_t status;
 
 
     while((status = inb(ATA_PRIMARY_STATUS)) & ATA_SR_BSY)
@@ -45,8 +43,21 @@ static bool cdrom_wait()
     }
 
 
-    if(status & ATA_SR_ERR)
-        return false;
+    while(!(status & ATA_SR_DRQ))
+    {
+        status = inb(ATA_PRIMARY_STATUS);
+
+
+        if(status & ATA_SR_ERR)
+            return false;
+
+
+        timeout--;
+
+
+        if(timeout <= 0)
+            return false;
+    }
 
 
     return true;
@@ -58,16 +69,8 @@ static bool cdrom_wait()
 
 void cdrom_init(void)
 {
-    /*
-        ATAPI detection will go here.
 
-        For now we mark it as unavailable.
-    */
-
-
-    cdrom_found = false;
 }
-
 
 
 
@@ -78,15 +81,128 @@ bool cdrom_read_sector(
     uint8_t *buffer
 )
 {
-    if(!cdrom_found)
+
+    if(!wait_ready())
         return false;
 
 
+
     /*
-        ATAPI READ(10) packet command
-        will be added here.
+        Select ATAPI master device
     */
 
+    outb(
+        ATA_PRIMARY_HDDEVSEL,
+        0xA0
+    );
 
-    return false;
+
+    io_wait();
+
+
+
+    /*
+        Set transfer size
+        2048 bytes
+    */
+
+    outb(
+        ATA_PRIMARY_FEATURES,
+        0
+    );
+
+
+    outb(
+        ATA_PRIMARY_LBA1,
+        0x08
+    );
+
+
+    outb(
+        ATA_PRIMARY_LBA2,
+        0
+    );
+
+
+
+    /*
+        Send PACKET command
+    */
+
+    outb(
+        ATA_PRIMARY_COMMAND,
+        ATAPI_CMD_PACKET
+    );
+
+
+
+    if(!wait_ready())
+        return false;
+
+
+
+    /*
+        READ(10) packet
+    */
+
+    uint8_t packet[12];
+
+
+    for(int i = 0; i < 12; i++)
+        packet[i] = 0;
+
+
+
+    packet[0] = ATAPI_CMD_READ10;
+
+
+    packet[2] =
+        (sector >> 24) & 0xFF;
+
+    packet[3] =
+        (sector >> 16) & 0xFF;
+
+    packet[4] =
+        (sector >> 8) & 0xFF;
+
+    packet[5] =
+        sector & 0xFF;
+
+
+    packet[7] = 0;
+
+    packet[8] = 1;
+
+
+
+    /*
+        Send packet
+    */
+
+    outsw(
+        ATA_PRIMARY_DATA,
+        packet,
+        6
+    );
+
+
+
+    if(!wait_ready())
+        return false;
+
+
+
+    /*
+        Read 2048 bytes
+    */
+
+    insw(
+        ATA_PRIMARY_DATA,
+        buffer,
+        1024
+    );
+
+
+
+    return true;
 }
