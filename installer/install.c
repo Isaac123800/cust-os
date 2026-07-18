@@ -9,14 +9,23 @@
 extern void print(char *text);
 
 
+/*
+    Large buffer moved out of stack.
+    Kernel stack is only 16KB.
+*/
+
+static uint8_t kernel_buffer[65536];
+
+
 
 bool install_system(void)
 {
     print("\nInstalling CustOS...\n\n");
 
 
+
     /*
-        Format target disk
+        Format drive
     */
 
     print("Formatting drive...\n");
@@ -49,13 +58,10 @@ bool install_system(void)
 
 
     /*
-        Read kernel from ISO
+        Copy kernel from ISO
     */
 
     print("Reading KERNEL.BIN from ISO...\n");
-
-
-    uint8_t kernel_buffer[65536];
 
 
     uint32_t kernel_size = 0;
@@ -74,7 +80,7 @@ bool install_system(void)
 
 
 
-    print("Kernel loaded from ISO\n\n");
+    print("Kernel loaded\n\n");
 
 
 
@@ -87,7 +93,7 @@ bool install_system(void)
 
     if(!fs_create("KERNEL.BIN"))
     {
-        print("Failed creating KERNEL.BIN\n");
+        print("Could not create KERNEL.BIN\n");
 
         return false;
     }
@@ -102,10 +108,11 @@ bool install_system(void)
         (char *)kernel_buffer,
         kernel_size))
     {
-        print("Failed writing KERNEL.BIN\n");
+        print("Could not write KERNEL.BIN\n");
 
         return false;
     }
+
 
 
     print("Kernel copied\n\n");
@@ -138,7 +145,7 @@ bool install_system(void)
 
 
 
-    print("Syncing filesystem...\n");
+    print("Saving filesystem...\n");
 
 
     fs_sync();
@@ -146,9 +153,6 @@ bool install_system(void)
 
 
     print("\nCustOS installation complete!\n");
-
-    print("Restart to boot from disk.\n");
-
 
 
     return true;
