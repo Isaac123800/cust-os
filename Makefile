@@ -16,6 +16,7 @@ all:
 
 	$(CC) $(CFLAGS) -c kernel/kernel.c -o build/kernel.o
 
+
 	$(CC) $(CFLAGS) -c installer/installer.c -o build/installer.o
 	$(CC) $(CFLAGS) -c installer/install.c -o build/install.o
 
@@ -47,8 +48,15 @@ all:
 
 
 	mkdir -p iso/boot/grub
+	mkdir -p iso/files
+
 
 	cp build/kernel.bin iso/boot/kernel.bin
+
+	# File that the installer will copy later
+	cp build/kernel.bin iso/files/KERNEL.BIN
+
+
 	cp grub/grub.cfg iso/boot/grub/grub.cfg
 
 
