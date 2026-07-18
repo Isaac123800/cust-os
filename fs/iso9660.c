@@ -39,10 +39,7 @@ static uint32_t root_size = 0;
 
 
 
-static bool string_equal(
-    char *a,
-    char *b
-)
+static bool string_equal(char *a, char *b)
 {
     while(*a && *b)
     {
@@ -53,16 +50,12 @@ static bool string_equal(
         b++;
     }
 
-
     return (*a == 0 && *b == 0);
 }
 
 
 
-
-static void remove_version(
-    char *name
-)
+static void remove_version(char *name)
 {
     while(*name)
     {
@@ -80,16 +73,12 @@ static void remove_version(
 
 
 
-
 void iso_init(void)
 {
     static uint8_t buffer[ISO_SECTOR_SIZE];
 
 
-
-    if(!cdrom_read_sector(
-        16,
-        buffer))
+    if(!cdrom_read_sector(16, buffer))
     {
         print("ISO read failed\n");
         return;
@@ -114,16 +103,117 @@ void iso_init(void)
 
 
 
-    root_sector =
-        root->extent;
+    root_sector = root->extent;
 
-
-    root_size =
-        root->size;
-
+    root_size = root->size;
 
 
     print("ISO9660 detected\n");
+}
+
+
+
+
+
+
+
+void iso_list_root(void)
+{
+    if(root_sector == 0)
+        iso_init();
+
+
+
+    static uint8_t sector[ISO_SECTOR_SIZE];
+
+
+    uint32_t current =
+        root_sector;
+
+
+    uint32_t remaining =
+        root_size;
+
+
+
+    print("ISO ROOT:\n");
+
+
+
+    while(remaining > 0)
+    {
+
+        if(!cdrom_read_sector(
+            current,
+            sector))
+        {
+            print("Sector read failed\n");
+            return;
+        }
+
+
+
+        uint32_t offset = 0;
+
+
+
+        while(offset < ISO_SECTOR_SIZE)
+        {
+
+            DirectoryEntry *entry =
+                (DirectoryEntry *)(sector + offset);
+
+
+
+            if(entry->length == 0)
+                break;
+
+
+
+            char filename[128];
+
+
+            uint8_t len =
+                entry->name_length;
+
+
+
+            if(len > 127)
+                len = 127;
+
+
+
+            for(int i = 0; i < len; i++)
+            {
+                filename[i] =
+                    sector[offset + 33 + i];
+            }
+
+
+
+            filename[len] = 0;
+
+
+
+            print(filename);
+            print("\n");
+
+
+
+            offset += entry->length;
+        }
+
+
+
+        current++;
+
+
+
+        if(remaining >= ISO_SECTOR_SIZE)
+            remaining -= ISO_SECTOR_SIZE;
+        else
+            remaining = 0;
+    }
 }
 
 
@@ -144,6 +234,7 @@ bool iso_read_file(
     {
         iso_init();
 
+
         if(root_sector == 0)
             return false;
     }
@@ -154,9 +245,8 @@ bool iso_read_file(
 
 
 
-    uint32_t current_sector =
+    uint32_t current =
         root_sector;
-
 
 
     uint32_t remaining =
@@ -164,12 +254,11 @@ bool iso_read_file(
 
 
 
-
     while(remaining > 0)
     {
 
         if(!cdrom_read_sector(
-            current_sector,
+            current,
             sector))
         {
             return false;
@@ -237,14 +326,12 @@ bool iso_read_file(
                     entry->extent;
 
 
-
                 uint32_t file_size =
                     entry->size;
 
 
 
-                *size =
-                    file_size;
+                *size = file_size;
 
 
 
@@ -296,7 +383,7 @@ bool iso_read_file(
 
 
 
-        current_sector++;
+        current++;
 
 
 
@@ -309,7 +396,6 @@ bool iso_read_file(
 
 
     print("File not found\n");
-
 
     return false;
 }
