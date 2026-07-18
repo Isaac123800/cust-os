@@ -3,6 +3,7 @@
 #include "grub_install.h"
 
 #include "../fs/filesystem.h"
+#include "../fs/iso9660.h"
 
 
 extern void print(char *text);
@@ -30,9 +31,67 @@ bool install_system(void)
         Install bootloader
     */
 
+    print("Installing bootloader...\n");
+
+
     if(!install_grub())
     {
         print("Bootloader installation failed\n");
+
+        return false;
+    }
+
+
+
+    /*
+        Copy kernel from ISO
+    */
+
+    print("Copying kernel...\n");
+
+
+
+    uint8_t kernel_buffer[65536];
+
+    uint32_t kernel_size = 0;
+
+
+
+    if(!iso_read_file(
+            "KERNEL.BIN",
+            kernel_buffer,
+            &kernel_size))
+    {
+        print("Could not find KERNEL.BIN on installer media\n");
+
+        return false;
+    }
+
+
+
+    /*
+        Create kernel file
+    */
+
+    if(!fs_create("KERNEL.BIN"))
+    {
+        print("Could not create KERNEL.BIN\n");
+
+        return false;
+    }
+
+
+
+    /*
+        Write kernel data
+    */
+
+    if(!fs_write(
+            "KERNEL.BIN",
+            (char *)kernel_buffer,
+            kernel_size))
+    {
+        print("Could not write KERNEL.BIN\n");
 
         return false;
     }
@@ -47,18 +106,9 @@ bool install_system(void)
 
 
 
-    if(!fs_create("KERNEL.BIN"))
-    {
-        print("Failed creating kernel file\n");
-
-        return false;
-    }
-
-
-
     if(!fs_create("SYSTEM.BIN"))
     {
-        print("Failed creating system file\n");
+        print("Failed creating SYSTEM.BIN\n");
 
         return false;
     }
@@ -67,7 +117,7 @@ bool install_system(void)
 
     if(!fs_create("CONFIG.TXT"))
     {
-        print("Failed creating config file\n");
+        print("Failed creating CONFIG.TXT\n");
 
         return false;
     }
@@ -75,7 +125,7 @@ bool install_system(void)
 
 
     /*
-        Save filesystem
+        Save filesystem changes
     */
 
     fs_sync();
@@ -84,8 +134,7 @@ bool install_system(void)
 
     print("\nCustOS installation complete!\n");
 
-
-    print("You may restart the computer.\n");
+    print("Restart the computer to boot CustOS.\n");
 
 
 
