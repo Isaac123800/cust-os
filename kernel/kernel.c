@@ -8,6 +8,7 @@
 #include "drivers/disk.h"
 #include "fs/filesystem.h"
 #include "installer/installer.h"
+#include "drivers/cdrom.h"
 
 
 #define VIDEO_MEMORY 0xB8000
@@ -740,20 +741,30 @@ void run_command(char *input)
     KERNEL ENTRY
 */
 
-
 void kernel_main()
 {
     clear();
 
 
-    print("Starting CustOS Installer...\n");
+    print("Starting CustOS Installer...\n\n");
 
 
     /*
         Initialize hardware
     */
 
+    print("Initializing disk...\n");
+
     disk_init();
+
+
+    print("Initializing CD-ROM...\n");
+
+    cdrom_init();
+
+
+    print("Hardware ready\n\n");
+
 
 
     /*
@@ -765,8 +776,14 @@ void kernel_main()
 
 
     /*
-        Stop after installer finishes
+        Installer finished
     */
+
+    print("\nInstaller stopped.\n");
+
+    print("You can restart your computer.\n");
+
+
 
     while(1)
     {
