@@ -18,13 +18,15 @@ static void delay()
 
 
 
+
+
 void installer_start(void)
 {
 
     clear();
 
 
-    print("Preparing for first CustOS boot...\n");
+    print("Preparing CustOS Installer...\n");
 
 
     delay();
@@ -34,15 +36,43 @@ void installer_start(void)
     clear();
 
 
+
     print("CustOS Installer\n");
     print("================\n\n");
+
 
 
     print("Starting installation...\n");
 
 
-    install_system();
+    print("Calling install_system...\n");
 
 
-    print("\nYou can now restart your computer.\n");
+
+    bool result = install_system();
+
+
+
+    print("Returned from install_system...\n");
+
+
+
+    if(result)
+    {
+        print("\nInstallation successful!\n");
+
+        print("Restart the machine to boot CustOS.\n");
+    }
+
+    else
+    {
+        print("\nInstallation failed!\n");
+    }
+
+
+
+    while(1)
+    {
+
+    }
 }
