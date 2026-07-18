@@ -1,14 +1,15 @@
-// Custos OS kernel.c
-// Disk filesystem version
+// CustOS kernel.c
+// Installer + filesystem version
 
 #include <stdbool.h>
 
 #include "include/types.h"
 
 #include "drivers/disk.h"
+#include "drivers/cdrom.h"
 #include "fs/filesystem.h"
 #include "installer/installer.h"
-#include "drivers/cdrom.h"
+
 
 
 #define VIDEO_MEMORY 0xB8000
@@ -22,6 +23,7 @@ int cursor = 0;
 
 int text_color = 7;
 int bg_color = 0;
+
 
 
 
@@ -45,7 +47,6 @@ void scroll()
     {
         video[(24*80+x)*2] = ' ';
 
-
         video[(24*80+x)*2+1] =
         (bg_color << 4) | text_color;
     }
@@ -53,6 +54,7 @@ void scroll()
 
     cursor = 24*80;
 }
+
 
 
 
@@ -70,13 +72,13 @@ void putchar(char c)
     {
         video[cursor*2] = c;
 
-
         video[cursor*2+1] =
         (bg_color << 4) | text_color;
 
 
         cursor++;
     }
+
 
 
     if(cursor >= 80*25)
@@ -150,14 +152,19 @@ char keyboard()
         0,27,
         '1','2','3','4','5','6','7','8','9','0',
         '-','=',8,9,
+
         'q','w','e','r','t','y','u','i','o','p',
         '[',']',13,0,
+
         'a','s','d','f','g','h','j','k','l',
         ';','\'','`',0,'\\',
+
         'z','x','c','v','b','n','m',
         ',','.','/',
+
         0,'*',0,' '
     };
+
 
 
     while(1)
@@ -243,6 +250,7 @@ bool equal(char *a, char *b)
 
 
 
+
 bool starts(char *a, char *b)
 {
     int i = 0;
@@ -266,9 +274,7 @@ bool starts(char *a, char *b)
 
 int find_command(char *name)
 {
-    for(int i = 0;
-        i < command_count;
-        i++)
+    for(int i = 0; i < command_count; i++)
     {
         if(equal(commands[i].name,name))
             return i;
@@ -284,8 +290,7 @@ int find_command(char *name)
 
 bool enabled(char *name)
 {
-    int id =
-        find_command(name);
+    int id = find_command(name);
 
 
     if(id < 0)
@@ -304,9 +309,7 @@ void credits()
     print("\nMade By:\n");
 
     print("Isaac Polomski\n");
-
     print("Roshan Inbasekar\n");
-
     print("Kirthis Kirubaventhan\n");
 }
 
@@ -319,29 +322,19 @@ void cmdlist()
     print("\nCommands:\n");
 
 
-    for(int i = 0;
-        i < command_count;
-        i++)
+    for(int i = 0; i < command_count; i++)
     {
-
         print(commands[i].name);
 
 
-
         if(commands[i].protected)
-        {
             print(" Protected\n");
-        }
 
         else if(commands[i].enabled)
-        {
             print(" Enabled\n");
-        }
 
         else
-        {
             print(" Disabled\n");
-        }
     }
 }
 
@@ -351,20 +344,17 @@ void cmdlist()
 
 void enable_command(char *name)
 {
-    int id =
-        find_command(name);
+    int id = find_command(name);
 
 
     if(id < 0)
     {
         print("\nCommand not found\n");
-
         return;
     }
 
 
     commands[id].enabled = true;
-
 
     print("\nCommand enabled\n");
 }
@@ -375,14 +365,12 @@ void enable_command(char *name)
 
 void disable_command(char *name)
 {
-    int id =
-        find_command(name);
+    int id = find_command(name);
 
 
     if(id < 0)
     {
         print("\nCommand not found\n");
-
         return;
     }
 
@@ -391,7 +379,6 @@ void disable_command(char *name)
     if(commands[id].protected)
     {
         print("\nCannot disable protected command\n");
-
         return;
     }
 
@@ -414,8 +401,7 @@ int get_number(char *s)
 
     while(*s >= '0' && *s <= '9')
     {
-        n =
-        n * 10 + (*s - '0');
+        n = n * 10 + (*s - '0');
 
         s++;
     }
@@ -440,43 +426,6 @@ void show_colors()
     print("5 Magenta\n");
     print("6 Cyan\n");
     print("7 White\n");
-    print("8 Gray\n");
-    print("9 Light Red\n");
-    print("10 Light Green\n");
-    print("11 Light Yellow\n");
-    print("12 Light Blue\n");
-    print("13 Light Magenta\n");
-    print("14 Light Cyan\n");
-    print("15 Bright White\n");
-}
-
-
-
-
-
-void set_background(char *n)
-{
-    bg_color =
-        get_number(n);
-
-
-    clear();
-
-
-    print("Background changed\n");
-}
-
-
-
-
-
-void set_text(char *n)
-{
-    text_color =
-        get_number(n);
-
-
-    print("Text color changed\n");
 }
 /*
     FILESYSTEM COMMANDS
@@ -486,13 +435,10 @@ void set_text(char *n)
 void touch(char *name)
 {
     if(fs_create(name))
-    {
         print("\nFile created\n");
-    }
+
     else
-    {
         print("\nCould not create file\n");
-    }
 }
 
 
@@ -507,7 +453,6 @@ void cat(char *name)
     if(fs_read(name, buffer))
     {
         print("\n");
-
         print(buffer);
     }
 
@@ -529,16 +474,12 @@ void write_file(char *name)
     print("\nEnter text:\n");
 
 
-
     int pos = 0;
-
 
 
     while(1)
     {
-        char c =
-            keyboard();
-
+        char c = keyboard();
 
 
         if(c == 13)
@@ -574,14 +515,10 @@ void write_file(char *name)
 
 
     if(fs_write(name,buffer,pos))
-    {
         print("\nSaved\n");
-    }
 
     else
-    {
         print("\nWrite failed\n");
-    }
 }
 
 
@@ -591,18 +528,15 @@ void write_file(char *name)
 void remove_file(char *name)
 {
     if(fs_delete(name))
-    {
         print("\nDeleted\n");
-    }
 
     else
-    {
         print("\nFile not found\n");
-    }
 }
-/*
-    ECHO COMMAND
-*/
+
+
+
+
 
 void echo(char *text)
 {
@@ -618,6 +552,7 @@ void echo(char *text)
 /*
     COMMAND PARSER
 */
+
 
 void run_command(char *input)
 {
@@ -666,32 +601,6 @@ void run_command(char *input)
 
 
 
-    else if(equal(input,"color"))
-    {
-        show_colors();
-    }
-
-
-
-    else if(starts(input,"color bg "))
-    {
-        set_background(input + 9);
-    }
-
-
-
-    else if(starts(input,"color txt "))
-    {
-        set_text(input + 10);
-    }
-
-
-
-    /*
-        FILESYSTEM COMMANDS
-    */
-
-
     else if(starts(input,"touch "))
     {
         if(enabled("touch"))
@@ -732,14 +641,27 @@ void run_command(char *input)
 
 
 
+    else if(equal(input,"color"))
+    {
+        show_colors();
+    }
+
+
+
     else
     {
-        print("\nerror: Command not Found or not Enabled\n");
+        print("\nCommand not found\n");
     }
 }
+
+
+
+
+
 /*
     KERNEL ENTRY
 */
+
 
 void kernel_main()
 {
@@ -749,39 +671,25 @@ void kernel_main()
     print("Starting CustOS Installer...\n\n");
 
 
-    /*
-        Initialize hardware
-    */
 
     print("Initializing disk...\n");
 
     disk_init();
 
 
-    print("Initializing CD-ROM...\n");
 
-    cdrom_init();
-
-
-    print("Hardware ready\n\n");
+    print("Disk ready\n\n");
 
 
 
-    /*
-        Start installer
-    */
+    print("Starting installer...\n");
+
 
     installer_start();
 
 
 
-    /*
-        Installer finished
-    */
-
-    print("\nInstaller stopped.\n");
-
-    print("You can restart your computer.\n");
+    print("\nInstaller finished.\n");
 
 
 
