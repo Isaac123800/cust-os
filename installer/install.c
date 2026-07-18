@@ -15,15 +15,17 @@ bool install_system(void)
     print("\nInstalling CustOS...\n\n");
 
 
-
     /*
-        Format target drive
+        Format target disk
     */
 
     print("Formatting drive...\n");
 
 
     fs_format();
+
+
+    print("Format complete\n\n");
 
 
 
@@ -42,30 +44,37 @@ bool install_system(void)
     }
 
 
+    print("Bootloader installed\n\n");
+
+
 
     /*
-        Copy kernel from ISO
+        Read kernel from ISO
     */
 
-    print("Copying kernel...\n");
-
+    print("Reading KERNEL.BIN from ISO...\n");
 
 
     uint8_t kernel_buffer[65536];
+
 
     uint32_t kernel_size = 0;
 
 
 
     if(!iso_read_file(
-            "KERNEL.BIN",
-            kernel_buffer,
-            &kernel_size))
+        "KERNEL.BIN",
+        kernel_buffer,
+        &kernel_size))
     {
-        print("Could not find KERNEL.BIN on installer media\n");
+        print("Could not read KERNEL.BIN\n");
 
         return false;
     }
+
+
+
+    print("Kernel loaded from ISO\n\n");
 
 
 
@@ -73,28 +82,33 @@ bool install_system(void)
         Create kernel file
     */
 
+    print("Creating KERNEL.BIN...\n");
+
+
     if(!fs_create("KERNEL.BIN"))
     {
-        print("Could not create KERNEL.BIN\n");
+        print("Failed creating KERNEL.BIN\n");
 
         return false;
     }
 
 
 
-    /*
-        Write kernel data
-    */
+    print("Writing KERNEL.BIN...\n");
+
 
     if(!fs_write(
-            "KERNEL.BIN",
-            (char *)kernel_buffer,
-            kernel_size))
+        "KERNEL.BIN",
+        (char *)kernel_buffer,
+        kernel_size))
     {
-        print("Could not write KERNEL.BIN\n");
+        print("Failed writing KERNEL.BIN\n");
 
         return false;
     }
+
+
+    print("Kernel copied\n\n");
 
 
 
@@ -124,9 +138,8 @@ bool install_system(void)
 
 
 
-    /*
-        Save filesystem changes
-    */
+    print("Syncing filesystem...\n");
+
 
     fs_sync();
 
@@ -134,7 +147,7 @@ bool install_system(void)
 
     print("\nCustOS installation complete!\n");
 
-    print("Restart the computer to boot CustOS.\n");
+    print("Restart to boot from disk.\n");
 
 
 
