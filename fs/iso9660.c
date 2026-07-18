@@ -7,7 +7,7 @@ extern void print(char *text);
 
 
 
-typedef struct
+typedef struct __attribute__((packed))
 {
     uint8_t length;
     uint8_t ext_attr_length;
@@ -50,20 +50,41 @@ static bool string_equal(
     }
 
 
-    return *a == 0 && *b == 0;
+    return (*a == 0 && *b == 0);
 }
+
+
+
+
+
+static void remove_version(
+    char *name
+)
+{
+    while(*name)
+    {
+        if(*name == ';')
+        {
+            *name = 0;
+            return;
+        }
+
+        name++;
+    }
+}
+
+
 
 
 
 
 void iso_init(void)
 {
-    uint8_t buffer[ISO_SECTOR_SIZE];
+    static uint8_t buffer[ISO_SECTOR_SIZE];
 
 
     /*
         Primary Volume Descriptor
-        starts at sector 16
     */
 
     if(!cdrom_read_sector(
@@ -77,7 +98,7 @@ void iso_init(void)
 
 
     /*
-        Check CD001
+        Check ISO9660 magic
     */
 
     if(buffer[1] != 'C' ||
@@ -91,10 +112,6 @@ void iso_init(void)
     }
 
 
-
-    /*
-        Root directory record starts at byte 156
-    */
 
     DirectoryEntry *root =
         (DirectoryEntry *)(buffer + 156);
@@ -118,15 +135,19 @@ void iso_init(void)
 
 
 
+
+
 bool iso_read_file(
     char *name,
     uint8_t *buffer,
     uint32_t *size
 )
 {
+
     if(root_sector == 0)
     {
         iso_init();
+
 
         if(root_sector == 0)
             return false;
@@ -148,6 +169,7 @@ bool iso_read_file(
 
 
 
+
     while(remaining > 0)
     {
 
@@ -166,6 +188,7 @@ bool iso_read_file(
 
         while(offset < ISO_SECTOR_SIZE)
         {
+
             DirectoryEntry *entry =
                 (DirectoryEntry *)(sector + offset);
 
@@ -185,36 +208,27 @@ bool iso_read_file(
 
 
 
-            if(len >= 127)
+            if(len > 127)
                 len = 127;
 
 
 
-            for(int i = 0; i < len; i++)
+            for(int i = 0;
+                i < len;
+                i++)
             {
                 filename[i] =
                     sector[offset + 33 + i];
             }
 
 
+
             filename[len] = 0;
 
 
 
-            /*
-                ISO files often have ;1
-                version suffix
-            */
+            remove_version(filename);
 
-
-            for(int i = 0; filename[i]; i++)
-            {
-                if(filename[i] == ';')
-                {
-                    filename[i] = 0;
-                    break;
-                }
-            }
 
 
 
@@ -223,8 +237,17 @@ bool iso_read_file(
                 name))
             {
 
+                print("Found file: ");
+
+                print(filename);
+
+                print("\n");
+
+
+
                 uint32_t file_sector =
                     entry->extent;
+
 
 
                 uint32_t file_size =
@@ -232,13 +255,16 @@ bool iso_read_file(
 
 
 
-                *size = file_size;
+                *size =
+                    file_size;
 
 
 
                 uint32_t sectors =
-                    (file_size + ISO_SECTOR_SIZE - 1)
-                    / ISO_SECTOR_SIZE;
+                    (file_size +
+                    ISO_SECTOR_SIZE - 1)
+                    /
+                    ISO_SECTOR_SIZE;
 
 
 
@@ -246,10 +272,12 @@ bool iso_read_file(
 
 
 
+
                 for(uint32_t s = 0;
                     s < sectors;
                     s++)
                 {
+
                     if(!cdrom_read_sector(
                         file_sector + s,
                         sector))
@@ -259,7 +287,8 @@ bool iso_read_file(
 
 
 
-                    for(int i = 0;
+
+                    for(uint32_t i = 0;
                         i < ISO_SECTOR_SIZE &&
                         copied < file_size;
                         i++)
@@ -283,12 +312,17 @@ bool iso_read_file(
 
         current_sector++;
 
+
+
         if(remaining >= ISO_SECTOR_SIZE)
             remaining -= ISO_SECTOR_SIZE;
         else
             remaining = 0;
     }
 
+
+
+    print("File not found in ISO\n");
 
 
     return false;
