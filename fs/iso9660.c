@@ -7,6 +7,10 @@ extern void print(char *text);
 
 
 
+#define SECTOR_SIZE 2048
+
+
+
 typedef struct __attribute__((packed))
 {
     uint8_t length;
@@ -23,9 +27,11 @@ typedef struct __attribute__((packed))
     uint8_t flags;
 
     uint8_t file_unit_size;
+
     uint8_t interleave;
 
     uint16_t volume_sequence;
+
     uint16_t volume_sequence_be;
 
     uint8_t name_length;
@@ -39,7 +45,12 @@ static uint32_t root_size = 0;
 
 
 
-static bool string_equal(char *a, char *b)
+
+
+static bool equal(
+    char *a,
+    char *b
+)
 {
     while(*a && *b)
     {
@@ -50,12 +61,17 @@ static bool string_equal(char *a, char *b)
         b++;
     }
 
+
     return (*a == 0 && *b == 0);
 }
 
 
 
-static void remove_version(char *name)
+
+
+static void remove_version(
+    char *name
+)
 {
     while(*name)
     {
@@ -73,14 +89,50 @@ static void remove_version(char *name)
 
 
 
+static void copy_name(
+    uint8_t *src,
+    uint8_t len,
+    char *dst
+)
+{
+    if(len > 127)
+        len = 127;
+
+
+    for(int i = 0; i < len; i++)
+        dst[i] = src[i];
+
+
+    dst[len] = 0;
+}
+
+
+
+
+
+
 void iso_init(void)
 {
-    static uint8_t buffer[ISO_SECTOR_SIZE];
+    uint8_t buffer[SECTOR_SIZE];
 
 
-    if(!cdrom_read_sector(16, buffer))
+    print("ISO: Reading PVD\n");
+
+
+
+    if(!cdrom_read_sector(
+        16,
+        buffer))
     {
-        print("ISO read failed\n");
+        print("ISO: PVD read failed\n");
+        return;
+    }
+
+
+
+    if(buffer[0] != 1)
+    {
+        print("ISO: Wrong type\n");
         return;
     }
 
@@ -92,7 +144,7 @@ void iso_init(void)
        buffer[4] != '0' ||
        buffer[5] != '1')
     {
-        print("Not ISO9660\n");
+        print("ISO: Signature failed\n");
         return;
     }
 
@@ -108,7 +160,9 @@ void iso_init(void)
     root_size = root->size;
 
 
+
     print("ISO9660 detected\n");
+
 }
 
 
@@ -119,16 +173,28 @@ void iso_init(void)
 
 void iso_list_root(void)
 {
+
     if(root_sector == 0)
         iso_init();
 
 
 
-    static uint8_t sector[ISO_SECTOR_SIZE];
+    if(root_sector == 0)
+    {
+        print("ISO: No root\n");
+        return;
+    }
 
 
-    uint32_t current =
+
+
+    uint8_t buffer[SECTOR_SIZE];
+
+
+
+    uint32_t sector =
         root_sector;
+
 
 
     uint32_t remaining =
@@ -136,7 +202,7 @@ void iso_list_root(void)
 
 
 
-    print("ISO ROOT:\n");
+    print("ROOT DIRECTORY:\n");
 
 
 
@@ -144,10 +210,10 @@ void iso_list_root(void)
     {
 
         if(!cdrom_read_sector(
-            current,
-            sector))
+            sector,
+            buffer))
         {
-            print("Sector read failed\n");
+            print("ISO: directory read failed\n");
             return;
         }
 
@@ -157,11 +223,11 @@ void iso_list_root(void)
 
 
 
-        while(offset < ISO_SECTOR_SIZE)
+        while(offset < SECTOR_SIZE)
         {
 
             DirectoryEntry *entry =
-                (DirectoryEntry *)(sector + offset);
+                (DirectoryEntry *)(buffer + offset);
 
 
 
@@ -170,32 +236,18 @@ void iso_list_root(void)
 
 
 
-            char filename[128];
+            char name[128];
 
 
-            uint8_t len =
-                entry->name_length;
-
-
-
-            if(len > 127)
-                len = 127;
-
-
-
-            for(int i = 0; i < len; i++)
-            {
-                filename[i] =
-                    sector[offset + 33 + i];
-            }
+            copy_name(
+                buffer + offset + 33,
+                entry->name_length,
+                name
+            );
 
 
 
-            filename[len] = 0;
-
-
-
-            print(filename);
+            print(name);
             print("\n");
 
 
@@ -205,12 +257,12 @@ void iso_list_root(void)
 
 
 
-        current++;
+        sector++;
 
 
 
-        if(remaining >= ISO_SECTOR_SIZE)
-            remaining -= ISO_SECTOR_SIZE;
+        if(remaining >= SECTOR_SIZE)
+            remaining -= SECTOR_SIZE;
         else
             remaining = 0;
     }
@@ -222,30 +274,29 @@ void iso_list_root(void)
 
 
 
-
 bool iso_read_file(
-    char *name,
+    char *wanted,
     uint8_t *buffer,
     uint32_t *size
 )
 {
 
     if(root_sector == 0)
-    {
         iso_init();
 
 
-        if(root_sector == 0)
-            return false;
-    }
+
+    if(root_sector == 0)
+        return false;
 
 
 
-    static uint8_t sector[ISO_SECTOR_SIZE];
+
+    uint8_t sector_buffer[SECTOR_SIZE];
 
 
 
-    uint32_t current =
+    uint32_t sector =
         root_sector;
 
 
@@ -258,9 +309,10 @@ bool iso_read_file(
     {
 
         if(!cdrom_read_sector(
-            current,
-            sector))
+            sector,
+            sector_buffer))
         {
+            print("ISO: directory sector failed\n");
             return false;
         }
 
@@ -270,11 +322,11 @@ bool iso_read_file(
 
 
 
-        while(offset < ISO_SECTOR_SIZE)
+        while(offset < SECTOR_SIZE)
         {
 
             DirectoryEntry *entry =
-                (DirectoryEntry *)(sector + offset);
+                (DirectoryEntry *)(sector_buffer + offset);
 
 
 
@@ -283,47 +335,32 @@ bool iso_read_file(
 
 
 
-            char filename[128];
+            char name[128];
 
 
 
-            uint8_t len =
-                entry->name_length;
+            copy_name(
+                sector_buffer + offset + 33,
+                entry->name_length,
+                name
+            );
 
 
 
-            if(len > 127)
-                len = 127;
+            remove_version(name);
 
 
 
-            for(int i = 0; i < len; i++)
-            {
-                filename[i] =
-                    sector[offset + 33 + i];
-            }
-
-
-
-            filename[len] = 0;
-
-
-
-            remove_version(filename);
-
-
-
-            if(string_equal(
-                filename,
-                name))
+            if(equal(name, wanted))
             {
 
-                print("Found file\n");
+                print("ISO: File found\n");
 
 
 
                 uint32_t file_sector =
                     entry->extent;
+
 
 
                 uint32_t file_size =
@@ -335,11 +372,10 @@ bool iso_read_file(
 
 
 
-                uint32_t sectors =
-                    (file_size +
-                    ISO_SECTOR_SIZE - 1)
+                uint32_t count =
+                    (file_size + SECTOR_SIZE - 1)
                     /
-                    ISO_SECTOR_SIZE;
+                    SECTOR_SIZE;
 
 
 
@@ -347,27 +383,28 @@ bool iso_read_file(
 
 
 
-                for(uint32_t s = 0;
-                    s < sectors;
-                    s++)
+                for(uint32_t i = 0;
+                    i < count;
+                    i++)
                 {
 
                     if(!cdrom_read_sector(
-                        file_sector + s,
-                        sector))
+                        file_sector + i,
+                        sector_buffer))
                     {
+                        print("ISO: file read failed\n");
                         return false;
                     }
 
 
 
-                    for(uint32_t i = 0;
-                        i < ISO_SECTOR_SIZE &&
+                    for(uint32_t x = 0;
+                        x < SECTOR_SIZE &&
                         copied < file_size;
-                        i++)
+                        x++)
                     {
                         buffer[copied++] =
-                            sector[i];
+                            sector_buffer[x];
                     }
                 }
 
@@ -383,19 +420,20 @@ bool iso_read_file(
 
 
 
-        current++;
+        sector++;
 
 
 
-        if(remaining >= ISO_SECTOR_SIZE)
-            remaining -= ISO_SECTOR_SIZE;
+        if(remaining >= SECTOR_SIZE)
+            remaining -= SECTOR_SIZE;
         else
             remaining = 0;
     }
 
 
 
-    print("File not found\n");
+    print("ISO: File not found\n");
+
 
     return false;
 }
