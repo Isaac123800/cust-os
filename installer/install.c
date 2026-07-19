@@ -2,6 +2,7 @@
 
 #include "../fs/filesystem.h"
 #include "../fs/iso9660.h"
+#include "../drivers/cdrom.h"
 
 
 extern void print(char *text);
@@ -16,6 +17,11 @@ bool install_system(void)
 {
 
     print("\nInstalling CustOS...\n\n");
+
+
+    print("Initializing CD-ROM...\n");
+
+    cdrom_init();
 
 
 
