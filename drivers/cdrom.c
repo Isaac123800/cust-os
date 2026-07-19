@@ -4,41 +4,45 @@
 extern void print(char *text);
 
 
-#define ATA_DATA        0x1F0
-#define ATA_ERROR       0x1F1
-#define ATA_FEATURES    0x1F1
-#define ATA_SECCOUNT0   0x1F2
-#define ATA_LBA0        0x1F3
-#define ATA_LBA1        0x1F4
-#define ATA_LBA2        0x1F5
-#define ATA_HDDEVSEL    0x1F6
-#define ATA_COMMAND     0x1F7
-#define ATA_STATUS      0x1F7
+#define ATA_DATA        0x00
+#define ATA_ERROR       0x01
+#define ATA_FEATURES    0x01
+#define ATA_SECCOUNT0   0x02
+#define ATA_LBA0        0x03
+#define ATA_LBA1        0x04
+#define ATA_LBA2        0x05
+#define ATA_HDDEVSEL    0x06
+#define ATA_COMMAND     0x07
+#define ATA_STATUS      0x07
 
 
-#define ATA_CMD_PACKET  0xA0
+#define ATA_CMD_PACKET          0xA0
+#define ATA_CMD_IDENTIFY_PACKET 0xA1
 
-#define ATAPI_READ10    0x28
+
+#define ATAPI_READ10 0x28
 
 
-#define STATUS_BSY 0x80
-#define STATUS_DRQ 0x08
 #define STATUS_ERR 0x01
+#define STATUS_DRQ 0x08
+#define STATUS_BSY 0x80
 
 
 
+static uint16_t cd_base = 0;
+static uint8_t cd_drive = 0;
 static bool cd_found = false;
 
 
 
-static void print_hex(uint8_t n)
+static void print_hex(uint8_t value)
 {
     char hex[] = "0123456789ABCDEF";
 
     char out[3];
 
-    out[0] = hex[(n >> 4) & 0xF];
-    out[1] = hex[n & 0xF];
+    out[0] = hex[(value >> 4) & 0xF];
+    out[1] = hex[value & 0xF];
     out[2] = 0;
 
     print(out);
@@ -48,15 +52,15 @@ static void print_hex(uint8_t n)
 
 
 
-
-static bool wait_not_busy()
+static bool wait_not_busy(uint16_t base)
 {
     int timeout = 1000000;
 
 
     while(timeout--)
     {
-        uint8_t status = inb(ATA_STATUS);
+        uint8_t status =
+            inb(base + ATA_STATUS);
 
 
         if(!(status & STATUS_BSY))
@@ -64,7 +68,7 @@ static bool wait_not_busy()
     }
 
 
-    print("DEBUG: BUSY TIMEOUT\n");
+    print("BUSY TIMEOUT\n");
 
     return false;
 }
@@ -73,20 +77,20 @@ static bool wait_not_busy()
 
 
 
-
-static bool wait_drq()
+static bool wait_drq(uint16_t base)
 {
     int timeout = 1000000;
 
 
     while(timeout--)
     {
-        uint8_t status = inb(ATA_STATUS);
+        uint8_t status =
+            inb(base + ATA_STATUS);
 
 
         if(status & STATUS_ERR)
         {
-            print("DEBUG: STATUS ERROR\n");
+            print("ATA ERROR\n");
             return false;
         }
 
@@ -96,7 +100,7 @@ static bool wait_drq()
     }
 
 
-    print("DEBUG: DRQ TIMEOUT\n");
+    print("DRQ TIMEOUT\n");
 
     return false;
 }
@@ -107,29 +111,17 @@ static bool wait_drq()
 
 
 
-
-
-static void check_device(
+static bool detect_atapi(
     uint16_t base,
     uint8_t drive
 )
 {
 
-    print("DEBUG: Checking base ");
-
-    print_hex(base >> 8);
-    print_hex(base & 0xFF);
-
-    print(" drive ");
-
-    print_hex(drive);
-
-    print("\n");
-
+    print("Checking IDE\n");
 
 
     outb(
-        ATA_HDDEVSEL,
+        base + ATA_HDDEVSEL,
         drive
     );
 
@@ -138,12 +130,30 @@ static void check_device(
 
 
 
+    outb(base + ATA_FEATURES, 0);
+    outb(base + ATA_SECCOUNT0, 0);
+    outb(base + ATA_LBA0, 0);
+    outb(base + ATA_LBA1, 0);
+    outb(base + ATA_LBA2, 0);
+
+
+
+    outb(
+        base + ATA_COMMAND,
+        ATA_CMD_IDENTIFY_PACKET
+    );
+
+
+    io_wait();
+
+
+
     uint8_t status =
-        inb(ATA_STATUS);
+        inb(base + ATA_STATUS);
 
 
 
-    print("DEBUG: STATUS ");
+    print("STATUS ");
 
     print_hex(status);
 
@@ -152,35 +162,29 @@ static void check_device(
 
 
     if(status == 0)
-    {
-        print("DEBUG: No device\n");
-        return;
-    }
+        return false;
 
 
 
-    if(!wait_not_busy())
-    {
-        print("DEBUG: Device busy\n");
-        return;
-    }
-
+    if(!wait_not_busy(base))
+        return false;
 
 
 
     uint8_t lba1 =
-        inb(ATA_LBA1);
+        inb(base + ATA_LBA1);
+
 
     uint8_t lba2 =
-        inb(ATA_LBA2);
+        inb(base + ATA_LBA2);
 
 
 
-    print("DEBUG: LBA1 ");
+    print("SIG ");
 
     print_hex(lba1);
 
-    print(" LBA2 ");
+    print(" ");
 
     print_hex(lba2);
 
@@ -189,35 +193,24 @@ static void check_device(
 
 
     if(
-       lba1 == 0x14 &&
-       lba2 == 0xEB
+       (lba1 == 0x14 && lba2 == 0xEB) ||
+       (lba1 == 0x69 && lba2 == 0x96)
       )
     {
 
-        print("DEBUG: ATAPI SIGNATURE FOUND\n");
+        print("ATAPI CD FOUND\n");
 
+
+        cd_base = base;
+        cd_drive = drive;
         cd_found = true;
 
-        return;
+
+        return true;
     }
 
 
-
-    if(
-       lba1 == 0x69 &&
-       lba2 == 0x96
-      )
-    {
-        print("DEBUG: ATAPI SIGNATURE FOUND (ALT)\n");
-
-        cd_found = true;
-
-        return;
-    }
-
-
-
-    print("DEBUG: Not ATAPI\n");
+    return false;
 }
 
 
@@ -229,47 +222,42 @@ static void check_device(
 
 void cdrom_init(void)
 {
-    print("DEBUG: CD INIT START\n");
+
+    print("CD INIT\n");
 
 
-    // Primary IDE
-    check_device(
-        0x1F0,
-        0xA0
-    );
-
-
-    check_device(
-        0x1F0,
-        0xB0
-    );
-
-
-
-    // Secondary IDE
-    check_device(
-        0x170,
-        0xA0
-    );
-
-
-    check_device(
-        0x170,
-        0xB0
-    );
-
-
-
-    if(cd_found)
+    uint16_t bases[] =
     {
-        print("DEBUG: CD READY\n");
-    }
-    else
+        0x1F0,
+        0x170
+    };
+
+
+    uint8_t drives[] =
     {
-        print("DEBUG: NO CD FOUND\n");
+        0xA0,
+        0xB0
+    };
+
+
+
+    for(int b = 0; b < 2; b++)
+    {
+        for(int d = 0; d < 2; d++)
+        {
+
+            if(detect_atapi(
+                bases[b],
+                drives[d]))
+            {
+                return;
+            }
+        }
     }
+
+
+    print("NO CD FOUND\n");
 }
-
 
 
 
@@ -284,22 +272,17 @@ bool cdrom_read_sector(
 )
 {
 
-    print("DEBUG: READ SECTOR\n");
-
     if(!cd_found)
     {
-        print("DEBUG: READ FAILED - NO CD\n");
+        print("READ: NO CD\n");
         return false;
     }
 
 
 
-    print("DEBUG: Selecting CD\n");
-
-
     outb(
-        ATA_HDDEVSEL,
-        0xA0
+        cd_base + ATA_HDDEVSEL,
+        cd_drive
     );
 
 
@@ -307,49 +290,46 @@ bool cdrom_read_sector(
 
 
 
-    if(!wait_not_busy())
+    if(!wait_not_busy(cd_base))
         return false;
 
 
 
-    print("DEBUG: Sending PACKET\n");
 
-
+    // 2048 byte transfer
 
     outb(
-        ATA_FEATURES,
+        cd_base + ATA_FEATURES,
         0
     );
 
 
     outb(
-        ATA_LBA1,
+        cd_base + ATA_LBA1,
         0
     );
 
 
     outb(
-        ATA_LBA2,
+        cd_base + ATA_LBA2,
         8
     );
 
 
+
     outb(
-        ATA_COMMAND,
+        cd_base + ATA_COMMAND,
         ATA_CMD_PACKET
     );
 
 
 
-    if(!wait_drq())
+    if(!wait_drq(cd_base))
     {
-        print("DEBUG: PACKET DRQ FAILED\n");
+        print("PACKET DRQ FAIL\n");
         return false;
     }
 
-
-
-    print("DEBUG: Sending READ10\n");
 
 
 
@@ -363,17 +343,10 @@ bool cdrom_read_sector(
     packet[0] = ATAPI_READ10;
 
 
-    packet[2] =
-        (sector >> 24) & 0xFF;
-
-    packet[3] =
-        (sector >> 16) & 0xFF;
-
-    packet[4] =
-        (sector >> 8) & 0xFF;
-
-    packet[5] =
-        sector & 0xFF;
+    packet[2] = (sector >> 24) & 0xFF;
+    packet[3] = (sector >> 16) & 0xFF;
+    packet[4] = (sector >> 8) & 0xFF;
+    packet[5] = sector & 0xFF;
 
 
     packet[8] = 1;
@@ -381,38 +354,26 @@ bool cdrom_read_sector(
 
 
     outsw(
-        ATA_DATA,
+        cd_base + ATA_DATA,
         packet,
         6
     );
 
 
 
-    print("DEBUG: Waiting DATA\n");
-
-
-
-    if(!wait_drq())
+    if(!wait_drq(cd_base))
     {
-        print("DEBUG: DATA DRQ FAILED\n");
+        print("DATA DRQ FAIL\n");
         return false;
     }
 
 
 
-    print("DEBUG: Reading 2048 bytes\n");
-
-
-
     insw(
-        ATA_DATA,
+        cd_base + ATA_DATA,
         buffer,
         1024
     );
-
-
-
-    print("DEBUG: SECTOR OK\n");
 
 
     return true;
