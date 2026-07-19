@@ -1,5 +1,10 @@
 #include "io.h"
 
+/*
+    Basic port I/O helpers
+    These wrap x86 IN/OUT instructions in safe inline assembly.
+*/
+
 void outb(uint16_t port, uint8_t value)
 {
     __asm__ volatile (
@@ -44,6 +49,11 @@ uint16_t inw(uint16_t port)
     return value;
 }
 
+/*
+    Block transfers (string I/O)
+    Used by ATA/ATAPI for sector reads/writes.
+*/
+
 void insw(uint16_t port, void *buffer, uint32_t count)
 {
     __asm__ volatile (
@@ -62,8 +72,15 @@ void outsw(uint16_t port, const void *buffer, uint32_t count)
         "rep outsw"
         : "+S"(buffer), "+c"(count)
         : "d"(port)
+        : "memory"
     );
 }
+
+/*
+    io_wait:
+    Sends a dummy OUT to port 0x80.
+    This is a traditional delay used in old BIOS/ATA code.
+*/
 
 void io_wait(void)
 {
@@ -73,3 +90,4 @@ void io_wait(void)
         : "a"(0)
     );
 }
+
