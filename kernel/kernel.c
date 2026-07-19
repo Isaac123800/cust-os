@@ -662,7 +662,6 @@ void run_command(char *input)
     KERNEL ENTRY
 */
 
-
 void kernel_main()
 {
     clear();
@@ -677,12 +676,16 @@ void kernel_main()
     disk_init();
 
 
-
     print("Disk ready\n\n");
 
 
 
-    print("Starting installer...\n");
+    print("Initializing CD-ROM...\n");
+
+    cdrom_init();
+
+
+    print("\nStarting installer...\n");
 
 
     installer_start();
