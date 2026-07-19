@@ -17,7 +17,7 @@ extern void print(char *text);
 
 
 #define ATA_CMD_PACKET  0xA0
-
+#define ATA_CMD_IDENTIFY 0xEC
 #define ATAPI_READ10    0x28
 
 
@@ -26,10 +26,10 @@ extern void print(char *text);
 #define STATUS_ERR 0x01
 
 
-#define CD_DRIVE 0xB0
+static uint8_t cd_drive = 0;
 
 
-static bool wait_not_busy()
+static bool wait_busy_clear()
 {
     int timeout = 1000000;
 
@@ -37,23 +37,12 @@ static bool wait_not_busy()
     {
         uint8_t status = inb(ATA_STATUS);
 
-        if(status & STATUS_ERR)
-        {
-            print("ATA ERROR\n");
-            return false;
-        }
-
-
         if(!(status & STATUS_BSY))
             return true;
     }
 
-
-    print("BUSY TIMEOUT\n");
     return false;
 }
-
-
 
 
 
@@ -61,17 +50,13 @@ static bool wait_drq()
 {
     int timeout = 1000000;
 
-
     while(timeout--)
     {
         uint8_t status = inb(ATA_STATUS);
 
 
         if(status & STATUS_ERR)
-        {
-            print("ATAPI ERROR\n");
             return false;
-        }
 
 
         if(status & STATUS_DRQ)
@@ -79,7 +64,65 @@ static bool wait_drq()
     }
 
 
-    print("DRQ TIMEOUT\n");
+    return false;
+}
+
+
+
+
+static bool check_drive(uint8_t drive)
+{
+    uint8_t lba1;
+    uint8_t lba2;
+
+
+    outb(
+        ATA_HDDEVSEL,
+        drive
+    );
+
+
+    io_wait();
+
+
+    outb(
+        ATA_COMMAND,
+        ATA_CMD_IDENTIFY
+    );
+
+
+    io_wait();
+
+
+    uint8_t status = inb(ATA_STATUS);
+
+
+    if(status == 0)
+        return false;
+
+
+
+    if(!wait_busy_clear())
+        return false;
+
+
+
+    lba1 = inb(ATA_LBA1);
+    lba2 = inb(ATA_LBA2);
+
+
+
+    /*
+        ATAPI signature
+    */
+
+    if((lba1 == 0x14 && lba2 == 0xEB) ||
+       (lba1 == 0x69 && lba2 == 0x96))
+    {
+        return true;
+    }
+
+
     return false;
 }
 
@@ -87,29 +130,30 @@ static bool wait_drq()
 
 
 
-
 void cdrom_init(void)
 {
-    print("CD init\n");
+    print("Searching CD-ROM...\n");
 
 
-    outb(
-        ATA_HDDEVSEL,
-        CD_DRIVE
-    );
-
-
-    io_wait();
-
-
-    if(!wait_not_busy())
+    if(check_drive(0xA0))
     {
-        print("CD not ready\n");
+        cd_drive = 0xA0;
+        print("CD-ROM master found\n");
         return;
     }
 
 
-    print("CD ready\n");
+
+    if(check_drive(0xB0))
+    {
+        cd_drive = 0xB0;
+        print("CD-ROM slave found\n");
+        return;
+    }
+
+
+
+    print("No ATAPI CD-ROM found\n");
 }
 
 
@@ -123,23 +167,31 @@ bool cdrom_read_sector(
 )
 {
 
+    if(cd_drive == 0)
+    {
+        print("No CD drive\n");
+        return false;
+    }
+
+
+
     outb(
         ATA_HDDEVSEL,
-        CD_DRIVE
+        cd_drive
     );
 
 
     io_wait();
 
 
-    if(!wait_not_busy())
+
+    if(!wait_busy_clear())
         return false;
 
 
 
     /*
-        Set ATAPI transfer size:
-        2048 bytes
+        Set transfer size = 2048 bytes
     */
 
     outb(
@@ -161,10 +213,6 @@ bool cdrom_read_sector(
 
 
 
-    /*
-        Send PACKET command
-    */
-
     outb(
         ATA_COMMAND,
         ATA_CMD_PACKET
@@ -174,7 +222,7 @@ bool cdrom_read_sector(
 
     if(!wait_drq())
     {
-        print("No PACKET DRQ\n");
+        print("PACKET DRQ failed\n");
         return false;
     }
 
@@ -189,12 +237,7 @@ bool cdrom_read_sector(
 
 
 
-    /*
-        READ(10)
-    */
-
     packet[0] = ATAPI_READ10;
-
 
 
     packet[2] = (sector >> 24) & 0xFF;
@@ -202,11 +245,6 @@ bool cdrom_read_sector(
     packet[4] = (sector >> 8) & 0xFF;
     packet[5] = sector & 0xFF;
 
-
-
-    /*
-        Read 1 sector
-    */
 
     packet[8] = 1;
 
@@ -222,16 +260,11 @@ bool cdrom_read_sector(
 
     if(!wait_drq())
     {
-        print("No READ DRQ\n");
+        print("READ10 DRQ failed\n");
         return false;
     }
 
 
-
-
-    /*
-        Receive 2048 bytes
-    */
 
     insw(
         ATA_DATA,
