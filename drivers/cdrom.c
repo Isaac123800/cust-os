@@ -149,3 +149,9 @@ bool cdrom_read_sector(uint32_t sector, uint8_t *buffer)
 }
 
 
+uint8_t sig1 = inb(ATA_LBA1);
+uint8_t sig2 = inb(ATA_LBA2);
+if (sig1 != 0x14 || sig2 != 0xEB) {
+    print("Not ATAPI device\n");
+    return false;
+}
