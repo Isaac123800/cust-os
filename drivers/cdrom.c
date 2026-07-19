@@ -4,95 +4,39 @@
 extern void print(char *text);
 
 
-#define ATA_DATA        0x00
-#define ATA_ERROR       0x01
-#define ATA_FEATURES    0x01
-#define ATA_SECCOUNT0   0x02
-#define ATA_LBA0        0x03
-#define ATA_LBA1        0x04
-#define ATA_LBA2        0x05
-#define ATA_HDDEVSEL    0x06
-#define ATA_COMMAND     0x07
-#define ATA_STATUS      0x07
+#define ATA_DATA        0x1F0
+#define ATA_ERROR       0x1F1
+#define ATA_FEATURES    0x1F1
+#define ATA_SECCOUNT0   0x1F2
+#define ATA_LBA0        0x1F3
+#define ATA_LBA1        0x1F4
+#define ATA_LBA2        0x1F5
+#define ATA_HDDEVSEL    0x1F6
+#define ATA_COMMAND     0x1F7
+#define ATA_STATUS      0x1F7
 
 
-#define ATA_CMD_PACKET          0xA0
-#define ATA_CMD_IDENTIFY_PACKET 0xA1
+#define ATA_CMD_PACKET  0xA0
+
+#define ATAPI_READ10    0x28
 
 
-#define ATAPI_READ10 0x28
-
-
-#define STATUS_ERR 0x01
-#define STATUS_DRQ 0x08
 #define STATUS_BSY 0x80
+#define STATUS_DRQ 0x08
+#define STATUS_ERR 0x01
 
 
-
-static uint16_t cd_base = 0;
-static uint8_t cd_drive = 0;
 static bool cd_found = false;
 
 
-
-
-
-static void ata_write(
-    uint16_t base,
-    uint8_t reg,
-    uint8_t value
-)
-{
-    outb(base + reg, value);
-}
-
-
-
-
-static uint8_t ata_read(
-    uint16_t base,
-    uint8_t reg
-)
-{
-    return inb(base + reg);
-}
-
-
-
-
-
-
-static void select_drive(
-    uint16_t base,
-    uint8_t drive
-)
-{
-    ata_write(
-        base,
-        ATA_HDDEVSEL,
-        drive
-    );
-
-    io_wait();
-}
-
-
-
-
-
-
-
-static bool wait_busy_clear(
-    uint16_t base
-)
+static bool wait_not_busy()
 {
     int timeout = 1000000;
 
 
     while(timeout--)
     {
-        uint8_t status =
-            ata_read(base, ATA_STATUS);
+        uint8_t status = inb(ATA_STATUS);
 
 
         if(!(status & STATUS_BSY))
@@ -100,29 +44,28 @@ static bool wait_busy_clear(
     }
 
 
+    print("BUSY TIMEOUT\n");
     return false;
 }
 
 
 
 
-
-
-static bool wait_drq(
-    uint16_t base
-)
+static bool wait_drq()
 {
     int timeout = 1000000;
 
 
     while(timeout--)
     {
-        uint8_t status =
-            ata_read(base, ATA_STATUS);
+        uint8_t status = inb(ATA_STATUS);
 
 
         if(status & STATUS_ERR)
+        {
+            print("ATA ERROR\n");
             return false;
+        }
 
 
         if(status & STATUS_DRQ)
@@ -130,98 +73,9 @@ static bool wait_drq(
     }
 
 
+    print("DRQ TIMEOUT\n");
     return false;
 }
-
-
-
-
-
-
-
-
-
-static bool detect_atapi(
-    uint16_t base,
-    uint8_t drive
-)
-{
-
-    select_drive(
-        base,
-        drive
-    );
-
-
-    // Reset registers
-
-    ata_write(base, ATA_FEATURES, 0);
-    ata_write(base, ATA_SECCOUNT0, 0);
-    ata_write(base, ATA_LBA0, 0);
-    ata_write(base, ATA_LBA1, 0);
-    ata_write(base, ATA_LBA2, 0);
-
-
-
-    ata_write(
-        base,
-        ATA_COMMAND,
-        ATA_CMD_IDENTIFY_PACKET
-    );
-
-
-    io_wait();
-
-
-
-    uint8_t status =
-        ata_read(
-            base,
-            ATA_STATUS
-        );
-
-
-
-    if(status == 0)
-        return false;
-
-
-
-    // Wait for response
-
-    if(!wait_busy_clear(base))
-        return false;
-
-
-
-    uint8_t lba1 =
-        ata_read(base, ATA_LBA1);
-
-
-    uint8_t lba2 =
-        ata_read(base, ATA_LBA2);
-
-
-
-    if(
-       (lba1 == 0x14 && lba2 == 0xEB) ||
-       (lba1 == 0x69 && lba2 == 0x96)
-      )
-    {
-
-        cd_base = base;
-        cd_drive = drive;
-        cd_found = true;
-
-
-        return true;
-    }
-
-
-
-    return false;
-}
-
 
 
 
@@ -231,41 +85,41 @@ static bool detect_atapi(
 
 void cdrom_init(void)
 {
-    print("Searching CD-ROM\n");
+    print("Checking CD-ROM\n");
 
 
-    uint16_t channels[2];
+    // Secondary IDE master (QEMU default CD)
+    outb(
+        ATA_HDDEVSEL,
+        0xA0
+    );
 
-    channels[0] = 0x1F0; // primary
-    channels[1] = 0x170; // secondary
+
+    io_wait();
+
+
+    if(!wait_not_busy())
+        return;
 
 
 
-    for(int c = 0; c < 2; c++)
+    uint8_t sig1 = inb(ATA_LBA1);
+    uint8_t sig2 = inb(ATA_LBA2);
+
+
+
+    if(sig1 == 0x14 &&
+       sig2 == 0xEB)
     {
+        print("ATAPI CD FOUND\n");
 
-        if(detect_atapi(
-            channels[c],
-            0xA0))
-        {
-            print("ATAPI CD found\n");
-            return;
-        }
-
-
-
-        if(detect_atapi(
-            channels[c],
-            0xB0))
-        {
-            print("ATAPI CD found\n");
-            return;
-        }
+        cd_found = true;
+        return;
     }
 
 
 
-    print("NO CD\n");
+    print("NO ATAPI SIGNATURE\n");
 }
 
 
@@ -289,65 +143,53 @@ bool cdrom_read_sector(
 
 
 
-    uint16_t base = cd_base;
-
-
-
-    select_drive(
-        base,
-        cd_drive
+    outb(
+        ATA_HDDEVSEL,
+        0xA0
     );
 
 
+    io_wait();
 
-    if(!wait_busy_clear(base))
-    {
-        print("BUSY FAIL\n");
+
+
+    if(!wait_not_busy())
         return false;
-    }
 
 
 
-    /*
-       Request 2048 byte transfer
-    */
 
-    ata_write(
-        base,
+    // Request 2048 bytes
+
+    outb(
         ATA_FEATURES,
         0
     );
 
 
-    ata_write(
-        base,
+    outb(
         ATA_LBA1,
-        0x00
+        0
     );
 
 
-    ata_write(
-        base,
+    outb(
         ATA_LBA2,
-        0x08
+        8
     );
 
 
 
+    // PACKET
 
-    /*
-       Send ATAPI PACKET
-    */
-
-    ata_write(
-        base,
+    outb(
         ATA_COMMAND,
         ATA_CMD_PACKET
     );
 
 
 
-    if(!wait_drq(base))
+    if(!wait_drq())
     {
         print("PACKET DRQ FAIL\n");
         return false;
@@ -382,21 +224,19 @@ bool cdrom_read_sector(
 
 
 
-    // Read one sector
-
     packet[8] = 1;
 
 
 
     outsw(
-        base + ATA_DATA,
+        ATA_DATA,
         packet,
         6
     );
 
 
 
-    if(!wait_drq(base))
+    if(!wait_drq())
     {
         print("READ DRQ FAIL\n");
         return false;
@@ -405,11 +245,10 @@ bool cdrom_read_sector(
 
 
     insw(
-        base + ATA_DATA,
+        ATA_DATA,
         buffer,
         1024
     );
-
 
 
     return true;
