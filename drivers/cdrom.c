@@ -4,22 +4,23 @@
 extern void print(char *text);
 
 
-#define ATA_DATA        0
-#define ATA_ERROR       1
-#define ATA_FEATURES    1
-#define ATA_SECCOUNT0   2
-#define ATA_LBA0        3
-#define ATA_LBA1        4
-#define ATA_LBA2        5
-#define ATA_HDDEVSEL    6
-#define ATA_COMMAND     7
-#define ATA_STATUS      7
+#define ATA_DATA        0x00
+#define ATA_ERROR       0x01
+#define ATA_FEATURES    0x01
+#define ATA_SECCOUNT0   0x02
+#define ATA_LBA0        0x03
+#define ATA_LBA1        0x04
+#define ATA_LBA2        0x05
+#define ATA_HDDEVSEL    0x06
+#define ATA_COMMAND     0x07
+#define ATA_STATUS      0x07
 
 
-#define ATA_CMD_PACKET           0xA0
-#define ATA_CMD_IDENTIFY_PACKET  0xA1
+#define ATA_CMD_PACKET          0xA0
+#define ATA_CMD_IDENTIFY_PACKET 0xA1
 
-#define ATAPI_READ10             0x28
+
+#define ATAPI_READ10 0x28
 
 
 #define STATUS_ERR 0x01
@@ -35,7 +36,8 @@ static bool cd_found = false;
 
 
 
-static void write_reg(
+
+static void ata_write(
     uint16_t base,
     uint8_t reg,
     uint8_t value
@@ -47,7 +49,7 @@ static void write_reg(
 
 
 
-static uint8_t read_reg(
+static uint8_t ata_read(
     uint16_t base,
     uint8_t reg
 )
@@ -59,7 +61,30 @@ static uint8_t read_reg(
 
 
 
-static bool wait_not_busy(uint16_t base)
+
+static void select_drive(
+    uint16_t base,
+    uint8_t drive
+)
+{
+    ata_write(
+        base,
+        ATA_HDDEVSEL,
+        drive
+    );
+
+    io_wait();
+}
+
+
+
+
+
+
+
+static bool wait_busy_clear(
+    uint16_t base
+)
 {
     int timeout = 1000000;
 
@@ -67,11 +92,7 @@ static bool wait_not_busy(uint16_t base)
     while(timeout--)
     {
         uint8_t status =
-            read_reg(base, ATA_STATUS);
-
-
-        if(status & STATUS_ERR)
-            return false;
+            ata_read(base, ATA_STATUS);
 
 
         if(!(status & STATUS_BSY))
@@ -87,7 +108,9 @@ static bool wait_not_busy(uint16_t base)
 
 
 
-static bool wait_drq(uint16_t base)
+static bool wait_drq(
+    uint16_t base
+)
 {
     int timeout = 1000000;
 
@@ -95,18 +118,15 @@ static bool wait_drq(uint16_t base)
     while(timeout--)
     {
         uint8_t status =
-            read_reg(base, ATA_STATUS);
+            ata_read(base, ATA_STATUS);
 
 
         if(status & STATUS_ERR)
             return false;
 
 
-        if(!(status & STATUS_BSY) &&
-           (status & STATUS_DRQ))
-        {
+        if(status & STATUS_DRQ)
             return true;
-        }
     }
 
 
@@ -119,33 +139,31 @@ static bool wait_drq(uint16_t base)
 
 
 
-static bool detect_device(
+
+
+static bool detect_atapi(
     uint16_t base,
     uint8_t drive
 )
 {
 
-    write_reg(
+    select_drive(
         base,
-        ATA_HDDEVSEL,
         drive
     );
 
 
-    io_wait();
+    // Reset registers
+
+    ata_write(base, ATA_FEATURES, 0);
+    ata_write(base, ATA_SECCOUNT0, 0);
+    ata_write(base, ATA_LBA0, 0);
+    ata_write(base, ATA_LBA1, 0);
+    ata_write(base, ATA_LBA2, 0);
 
 
 
-    // Clear registers
-    write_reg(base, ATA_FEATURES, 0);
-    write_reg(base, ATA_SECCOUNT0, 0);
-    write_reg(base, ATA_LBA0, 0);
-    write_reg(base, ATA_LBA1, 0);
-    write_reg(base, ATA_LBA2, 0);
-
-
-
-    write_reg(
+    ata_write(
         base,
         ATA_COMMAND,
         ATA_CMD_IDENTIFY_PACKET
@@ -157,7 +175,10 @@ static bool detect_device(
 
 
     uint8_t status =
-        read_reg(base, ATA_STATUS);
+        ata_read(
+            base,
+            ATA_STATUS
+        );
 
 
 
@@ -166,17 +187,19 @@ static bool detect_device(
 
 
 
-    if(!wait_not_busy(base))
+    // Wait for response
+
+    if(!wait_busy_clear(base))
         return false;
 
 
 
     uint8_t lba1 =
-        read_reg(base, ATA_LBA1);
+        ata_read(base, ATA_LBA1);
 
 
     uint8_t lba2 =
-        read_reg(base, ATA_LBA2);
+        ata_read(base, ATA_LBA2);
 
 
 
@@ -195,8 +218,10 @@ static bool detect_device(
     }
 
 
+
     return false;
 }
+
 
 
 
@@ -209,33 +234,31 @@ void cdrom_init(void)
     print("Searching CD-ROM\n");
 
 
+    uint16_t channels[2];
 
-    uint16_t channels[] =
-    {
-        0x1F0,
-        0x170
-    };
+    channels[0] = 0x1F0; // primary
+    channels[1] = 0x170; // secondary
 
 
 
-    for(int i = 0; i < 2; i++)
+    for(int c = 0; c < 2; c++)
     {
 
-        if(detect_device(
-            channels[i],
+        if(detect_atapi(
+            channels[c],
             0xA0))
         {
-            print("CD-ROM found\n");
+            print("ATAPI CD found\n");
             return;
         }
 
 
 
-        if(detect_device(
-            channels[i],
+        if(detect_atapi(
+            channels[c],
             0xB0))
         {
-            print("CD-ROM found\n");
+            print("ATAPI CD found\n");
             return;
         }
     }
@@ -270,50 +293,53 @@ bool cdrom_read_sector(
 
 
 
-    write_reg(
+    select_drive(
         base,
-        ATA_HDDEVSEL,
         cd_drive
     );
 
 
-    io_wait();
 
-
-
-    if(!wait_not_busy(base))
+    if(!wait_busy_clear(base))
+    {
+        print("BUSY FAIL\n");
         return false;
+    }
 
 
 
+    /*
+       Request 2048 byte transfer
+    */
 
-    // Request 2048 byte transfer
-
-    write_reg(
+    ata_write(
         base,
         ATA_FEATURES,
         0
     );
 
 
-    write_reg(
+    ata_write(
         base,
         ATA_LBA1,
-        0
+        0x00
     );
 
 
-    write_reg(
+    ata_write(
         base,
         ATA_LBA2,
-        8
+        0x08
     );
 
 
 
-    // Send PACKET command
 
-    write_reg(
+    /*
+       Send ATAPI PACKET
+    */
+
+    ata_write(
         base,
         ATA_COMMAND,
         ATA_CMD_PACKET
@@ -341,6 +367,7 @@ bool cdrom_read_sector(
     packet[0] = ATAPI_READ10;
 
 
+
     packet[2] =
         (sector >> 24) & 0xFF;
 
@@ -354,6 +381,8 @@ bool cdrom_read_sector(
         sector & 0xFF;
 
 
+
+    // Read one sector
 
     packet[8] = 1;
 
@@ -369,7 +398,7 @@ bool cdrom_read_sector(
 
     if(!wait_drq(base))
     {
-        print("DATA DRQ FAIL\n");
+        print("READ DRQ FAIL\n");
         return false;
     }
 
@@ -380,6 +409,7 @@ bool cdrom_read_sector(
         buffer,
         1024
     );
+
 
 
     return true;
