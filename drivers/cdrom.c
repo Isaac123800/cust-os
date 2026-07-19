@@ -16,10 +16,10 @@ extern void print(char *text);
 #define ATA_STATUS      7
 
 
-#define ATA_CMD_PACKET          0xA0
-#define ATA_CMD_IDENTIFY_PACKET 0xA1
+#define ATA_CMD_PACKET           0xA0
+#define ATA_CMD_IDENTIFY_PACKET  0xA1
 
-#define ATAPI_READ10            0x28
+#define ATAPI_READ10             0x28
 
 
 #define STATUS_ERR 0x01
@@ -34,14 +34,12 @@ static bool cd_found = false;
 
 
 
-static uint8_t read_reg(uint16_t base, uint8_t reg)
-{
-    return inb(base + reg);
-}
 
-
-
-static void write_reg(uint16_t base, uint8_t reg, uint8_t value)
+static void write_reg(
+    uint16_t base,
+    uint8_t reg,
+    uint8_t value
+)
 {
     outb(base + reg, value);
 }
@@ -49,7 +47,19 @@ static void write_reg(uint16_t base, uint8_t reg, uint8_t value)
 
 
 
-static bool wait_ready(uint16_t base)
+static uint8_t read_reg(
+    uint16_t base,
+    uint8_t reg
+)
+{
+    return inb(base + reg);
+}
+
+
+
+
+
+static bool wait_not_busy(uint16_t base)
 {
     int timeout = 1000000;
 
@@ -61,10 +71,7 @@ static bool wait_ready(uint16_t base)
 
 
         if(status & STATUS_ERR)
-        {
-            print("ATA ERROR\n");
             return false;
-        }
 
 
         if(!(status & STATUS_BSY))
@@ -72,9 +79,9 @@ static bool wait_ready(uint16_t base)
     }
 
 
-    print("READY TIMEOUT\n");
     return false;
 }
+
 
 
 
@@ -92,10 +99,7 @@ static bool wait_drq(uint16_t base)
 
 
         if(status & STATUS_ERR)
-        {
-            print("ATAPI ERROR\n");
             return false;
-        }
 
 
         if(!(status & STATUS_BSY) &&
@@ -106,7 +110,6 @@ static bool wait_drq(uint16_t base)
     }
 
 
-    print("DRQ TIMEOUT\n");
     return false;
 }
 
@@ -114,7 +117,9 @@ static bool wait_drq(uint16_t base)
 
 
 
-static bool detect(
+
+
+static bool detect_device(
     uint16_t base,
     uint8_t drive
 )
@@ -128,6 +133,16 @@ static bool detect(
 
 
     io_wait();
+
+
+
+    // Clear registers
+    write_reg(base, ATA_FEATURES, 0);
+    write_reg(base, ATA_SECCOUNT0, 0);
+    write_reg(base, ATA_LBA0, 0);
+    write_reg(base, ATA_LBA1, 0);
+    write_reg(base, ATA_LBA2, 0);
+
 
 
     write_reg(
@@ -151,29 +166,30 @@ static bool detect(
 
 
 
-    if(!wait_ready(base))
+    if(!wait_not_busy(base))
         return false;
 
 
 
-    uint8_t sig1 =
+    uint8_t lba1 =
         read_reg(base, ATA_LBA1);
 
 
-    uint8_t sig2 =
+    uint8_t lba2 =
         read_reg(base, ATA_LBA2);
 
 
 
     if(
-       (sig1 == 0x14 && sig2 == 0xEB) ||
-       (sig1 == 0x69 && sig2 == 0x96)
+       (lba1 == 0x14 && lba2 == 0xEB) ||
+       (lba1 == 0x69 && lba2 == 0x96)
       )
     {
 
         cd_base = base;
         cd_drive = drive;
         cd_found = true;
+
 
         return true;
     }
@@ -190,10 +206,11 @@ static bool detect(
 
 void cdrom_init(void)
 {
-    print("Searching CD-ROM...\n");
+    print("Searching CD-ROM\n");
 
 
-    uint16_t bases[] =
+
+    uint16_t channels[] =
     {
         0x1F0,
         0x170
@@ -204,28 +221,28 @@ void cdrom_init(void)
     for(int i = 0; i < 2; i++)
     {
 
-        if(detect(
-            bases[i],
+        if(detect_device(
+            channels[i],
             0xA0))
         {
-            print("ATAPI CD found\n");
+            print("CD-ROM found\n");
             return;
         }
 
 
 
-        if(detect(
-            bases[i],
+        if(detect_device(
+            channels[i],
             0xB0))
         {
-            print("ATAPI CD found\n");
+            print("CD-ROM found\n");
             return;
         }
     }
 
 
 
-    print("No CD-ROM\n");
+    print("NO CD\n");
 }
 
 
@@ -243,13 +260,9 @@ bool cdrom_read_sector(
 
     if(!cd_found)
     {
-        print("No CD\n");
+        print("NO CD\n");
         return false;
     }
-
-
-
-    print("Reading sector\n");
 
 
 
@@ -268,17 +281,13 @@ bool cdrom_read_sector(
 
 
 
-    if(!wait_ready(base))
+    if(!wait_not_busy(base))
         return false;
 
 
 
 
-    /*
-        Set transfer size:
-        2048 bytes
-    */
-
+    // Request 2048 byte transfer
 
     write_reg(
         base,
@@ -290,23 +299,19 @@ bool cdrom_read_sector(
     write_reg(
         base,
         ATA_LBA1,
-        0x00
+        0
     );
 
 
     write_reg(
         base,
         ATA_LBA2,
-        0x08
+        8
     );
 
 
 
-
-    /*
-        PACKET command
-    */
-
+    // Send PACKET command
 
     write_reg(
         base,
@@ -324,8 +329,8 @@ bool cdrom_read_sector(
 
 
 
-    uint8_t packet[12];
 
+    uint8_t packet[12];
 
 
     for(int i = 0; i < 12; i++)
@@ -334,7 +339,6 @@ bool cdrom_read_sector(
 
 
     packet[0] = ATAPI_READ10;
-
 
 
     packet[2] =
@@ -352,7 +356,6 @@ bool cdrom_read_sector(
 
 
     packet[8] = 1;
-
 
 
 
@@ -377,7 +380,6 @@ bool cdrom_read_sector(
         buffer,
         1024
     );
-
 
 
     return true;
