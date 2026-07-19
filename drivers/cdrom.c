@@ -26,7 +26,27 @@ extern void print(char *text);
 #define STATUS_ERR 0x01
 
 
+
 static bool cd_found = false;
+
+
+
+static void print_hex(uint8_t n)
+{
+    char hex[] = "0123456789ABCDEF";
+
+    char out[3];
+
+    out[0] = hex[(n >> 4) & 0xF];
+    out[1] = hex[n & 0xF];
+    out[2] = 0;
+
+    print(out);
+}
+
+
+
+
 
 
 static bool wait_not_busy()
@@ -44,9 +64,12 @@ static bool wait_not_busy()
     }
 
 
-    print("BUSY TIMEOUT\n");
+    print("DEBUG: BUSY TIMEOUT\n");
+
     return false;
 }
+
+
 
 
 
@@ -63,7 +86,7 @@ static bool wait_drq()
 
         if(status & STATUS_ERR)
         {
-            print("ATA ERROR\n");
+            print("DEBUG: STATUS ERROR\n");
             return false;
         }
 
@@ -73,7 +96,8 @@ static bool wait_drq()
     }
 
 
-    print("DRQ TIMEOUT\n");
+    print("DEBUG: DRQ TIMEOUT\n");
+
     return false;
 }
 
@@ -83,44 +107,169 @@ static bool wait_drq()
 
 
 
-void cdrom_init(void)
+
+
+static void check_device(
+    uint16_t base,
+    uint8_t drive
+)
 {
-    print("Checking CD-ROM\n");
+
+    print("DEBUG: Checking base ");
+
+    print_hex(base >> 8);
+    print_hex(base & 0xFF);
+
+    print(" drive ");
+
+    print_hex(drive);
+
+    print("\n");
 
 
-    // Secondary IDE master (QEMU default CD)
+
     outb(
         ATA_HDDEVSEL,
-        0xA0
+        drive
     );
 
 
     io_wait();
 
 
-    if(!wait_not_busy())
-        return;
+
+    uint8_t status =
+        inb(ATA_STATUS);
 
 
 
-    uint8_t sig1 = inb(ATA_LBA1);
-    uint8_t sig2 = inb(ATA_LBA2);
+    print("DEBUG: STATUS ");
+
+    print_hex(status);
+
+    print("\n");
 
 
 
-    if(sig1 == 0x14 &&
-       sig2 == 0xEB)
+    if(status == 0)
     {
-        print("ATAPI CD FOUND\n");
-
-        cd_found = true;
+        print("DEBUG: No device\n");
         return;
     }
 
 
 
-    print("NO ATAPI SIGNATURE\n");
+    if(!wait_not_busy())
+    {
+        print("DEBUG: Device busy\n");
+        return;
+    }
+
+
+
+
+    uint8_t lba1 =
+        inb(ATA_LBA1);
+
+    uint8_t lba2 =
+        inb(ATA_LBA2);
+
+
+
+    print("DEBUG: LBA1 ");
+
+    print_hex(lba1);
+
+    print(" LBA2 ");
+
+    print_hex(lba2);
+
+    print("\n");
+
+
+
+    if(
+       lba1 == 0x14 &&
+       lba2 == 0xEB
+      )
+    {
+
+        print("DEBUG: ATAPI SIGNATURE FOUND\n");
+
+        cd_found = true;
+
+        return;
+    }
+
+
+
+    if(
+       lba1 == 0x69 &&
+       lba2 == 0x96
+      )
+    {
+        print("DEBUG: ATAPI SIGNATURE FOUND (ALT)\n");
+
+        cd_found = true;
+
+        return;
+    }
+
+
+
+    print("DEBUG: Not ATAPI\n");
 }
+
+
+
+
+
+
+
+
+void cdrom_init(void)
+{
+    print("DEBUG: CD INIT START\n");
+
+
+    // Primary IDE
+    check_device(
+        0x1F0,
+        0xA0
+    );
+
+
+    check_device(
+        0x1F0,
+        0xB0
+    );
+
+
+
+    // Secondary IDE
+    check_device(
+        0x170,
+        0xA0
+    );
+
+
+    check_device(
+        0x170,
+        0xB0
+    );
+
+
+
+    if(cd_found)
+    {
+        print("DEBUG: CD READY\n");
+    }
+    else
+    {
+        print("DEBUG: NO CD FOUND\n");
+    }
+}
+
 
 
 
@@ -135,12 +284,17 @@ bool cdrom_read_sector(
 )
 {
 
+    print("DEBUG: READ SECTOR\n");
+
     if(!cd_found)
     {
-        print("NO CD\n");
+        print("DEBUG: READ FAILED - NO CD\n");
         return false;
     }
 
+
+
+    print("DEBUG: Selecting CD\n");
 
 
     outb(
@@ -158,8 +312,9 @@ bool cdrom_read_sector(
 
 
 
+    print("DEBUG: Sending PACKET\n");
 
-    // Request 2048 bytes
+
 
     outb(
         ATA_FEATURES,
@@ -179,9 +334,6 @@ bool cdrom_read_sector(
     );
 
 
-
-    // PACKET
-
     outb(
         ATA_COMMAND,
         ATA_CMD_PACKET
@@ -191,15 +343,17 @@ bool cdrom_read_sector(
 
     if(!wait_drq())
     {
-        print("PACKET DRQ FAIL\n");
+        print("DEBUG: PACKET DRQ FAILED\n");
         return false;
     }
 
 
 
+    print("DEBUG: Sending READ10\n");
+
+
 
     uint8_t packet[12];
-
 
     for(int i = 0; i < 12; i++)
         packet[i] = 0;
@@ -207,7 +361,6 @@ bool cdrom_read_sector(
 
 
     packet[0] = ATAPI_READ10;
-
 
 
     packet[2] =
@@ -223,7 +376,6 @@ bool cdrom_read_sector(
         sector & 0xFF;
 
 
-
     packet[8] = 1;
 
 
@@ -236,11 +388,19 @@ bool cdrom_read_sector(
 
 
 
+    print("DEBUG: Waiting DATA\n");
+
+
+
     if(!wait_drq())
     {
-        print("READ DRQ FAIL\n");
+        print("DEBUG: DATA DRQ FAILED\n");
         return false;
     }
+
+
+
+    print("DEBUG: Reading 2048 bytes\n");
 
 
 
@@ -249,6 +409,10 @@ bool cdrom_read_sector(
         buffer,
         1024
     );
+
+
+
+    print("DEBUG: SECTOR OK\n");
 
 
     return true;
