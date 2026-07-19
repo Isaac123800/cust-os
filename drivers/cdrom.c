@@ -3,6 +3,7 @@
 
 extern void print(char *text);
 
+
 #define ATA_DATA        0x1F0
 #define ATA_ERROR       0x1F1
 #define ATA_FEATURES    0x1F1
@@ -14,144 +15,286 @@ extern void print(char *text);
 #define ATA_COMMAND     0x1F7
 #define ATA_STATUS      0x1F7
 
-#define ATA_CMD_PACKET  0xA0
-#define ATAPI_READ10    0x28
+
+#define ATA_CMD_PACKET          0xA0
+#define ATA_CMD_IDENTIFY_PACKET 0xA1
+
+#define ATAPI_READ10            0x28
+
 
 #define STATUS_BSY 0x80
 #define STATUS_DRQ 0x08
 #define STATUS_ERR 0x01
 
-// Most VMs (QEMU, Bochs, VMware with IDE CD) use master
-#define CD_DRIVE 0xA0
 
-static bool wait_not_busy(void)
+// QEMU: -hda = master, -cdrom = slave
+#define CD_DRIVE 0xB0
+
+
+
+static bool wait_not_busy()
 {
     int timeout = 1000000;
 
-    while (timeout--)
+    while(timeout--)
     {
         uint8_t status = inb(ATA_STATUS);
 
-        if (status & STATUS_ERR)
+
+        if(status & STATUS_ERR)
         {
             print("ATA ERROR\n");
             return false;
         }
 
-        if (!(status & STATUS_BSY))
+
+        if(!(status & STATUS_BSY))
             return true;
     }
+
 
     print("BUSY TIMEOUT\n");
     return false;
 }
 
-static bool wait_drq(void)
+
+
+
+static bool wait_drq()
 {
     int timeout = 1000000;
 
-    while (timeout--)
+
+    while(timeout--)
     {
         uint8_t status = inb(ATA_STATUS);
 
-        if (status & STATUS_ERR)
+
+        if(status & STATUS_ERR)
         {
             print("ATAPI ERROR\n");
             return false;
         }
 
-        if (status & STATUS_DRQ)
+
+        if(status & STATUS_DRQ)
             return true;
     }
+
 
     print("DRQ TIMEOUT\n");
     return false;
 }
 
+
+
+
+
+
 void cdrom_init(void)
 {
     print("CD init\n");
 
-    outb(ATA_HDDEVSEL, CD_DRIVE);
+
+    outb(
+        ATA_HDDEVSEL,
+        CD_DRIVE
+    );
+
+
     io_wait();
 
-    if (!wait_not_busy())
+
+
+    if(!wait_not_busy())
     {
         print("CD not ready\n");
         return;
     }
 
-    // Check ATAPI signature: LBA1 = 0x14, LBA2 = 0xEB
-    uint8_t sig1 = inb(ATA_LBA1);
-    uint8_t sig2 = inb(ATA_LBA2);
 
-    if (sig1 != 0x14 || sig2 != 0xEB)
+
+    /*
+        IDENTIFY PACKET DEVICE
+    */
+
+    outb(
+        ATA_COMMAND,
+        ATA_CMD_IDENTIFY_PACKET
+    );
+
+
+    io_wait();
+
+
+
+    uint8_t status = inb(ATA_STATUS);
+
+
+
+    if(status == 0)
     {
-        print("Not ATAPI device\n");
+        print("No CD device\n");
         return;
     }
 
-    print("CD ready\n");
+
+
+    if(!wait_not_busy())
+    {
+        print("Identify failed\n");
+        return;
+    }
+
+
+
+    uint8_t sig1 = inb(ATA_LBA1);
+    uint8_t sig2 = inb(ATA_LBA2);
+
+
+
+    if(sig1 == 0x14 && sig2 == 0xEB)
+    {
+        print("ATAPI CD found\n");
+    }
+    else
+    {
+        print("Wrong device\n");
+    }
 }
 
-bool cdrom_read_sector(uint32_t sector, uint8_t *buffer)
+
+
+
+
+
+
+
+bool cdrom_read_sector(
+    uint32_t sector,
+    uint8_t *buffer
+)
 {
-    outb(ATA_HDDEVSEL, CD_DRIVE);
+
+    outb(
+        ATA_HDDEVSEL,
+        CD_DRIVE
+    );
+
+
     io_wait();
 
-    if (!wait_not_busy())
+
+
+    if(!wait_not_busy())
         return false;
 
-    // Set ATAPI transfer size: 2048 bytes
-    outb(ATA_SECCOUNT0, 0);
-    outb(ATA_FEATURES, 0);
-    outb(ATA_LBA1, 0x00);
-    outb(ATA_LBA2, 0x08);
 
-    // Send PACKET command
-    outb(ATA_COMMAND, ATA_CMD_PACKET);
 
-    if (!wait_drq())
+
+    /*
+        ATAPI transfer size:
+        2048 bytes
+    */
+
+
+    outb(
+        ATA_FEATURES,
+        0
+    );
+
+
+    outb(
+        ATA_LBA1,
+        0x00
+    );
+
+
+    outb(
+        ATA_LBA2,
+        0x08
+    );
+
+
+
+    /*
+        Send PACKET command
+    */
+
+    outb(
+        ATA_COMMAND,
+        ATA_CMD_PACKET
+    );
+
+
+
+    if(!wait_drq())
     {
-        print("No PACKET DRQ\n");
+        print("PACKET DRQ failed\n");
         return false;
     }
 
+
+
+
+
     uint8_t packet[12];
 
-    for (int i = 0; i < 12; i++)
+
+    for(int i = 0; i < 12; i++)
         packet[i] = 0;
 
-    // READ(10)
+
+
+    /*
+        READ(10)
+    */
+
     packet[0] = ATAPI_READ10;
+
+
 
     packet[2] = (sector >> 24) & 0xFF;
     packet[3] = (sector >> 16) & 0xFF;
     packet[4] = (sector >> 8) & 0xFF;
     packet[5] = sector & 0xFF;
 
-    // Read 1 sector
-    packet[8] = 0x00;
-    packet[9] = 0x01;
 
-    outsw(ATA_DATA, packet, 6);
 
-    if (!wait_drq())
+    // Transfer 1 block
+    packet[8] = 0;
+    packet[9] = 1;
+
+
+
+    outsw(
+        ATA_DATA,
+        packet,
+        6
+    );
+
+
+
+    if(!wait_drq())
     {
-        print("No READ DRQ\n");
+        print("READ DRQ failed\n");
         return false;
     }
 
-    // Receive 2048 bytes (1024 words)
-    insw(ATA_DATA, buffer, 1024);
+
+
+
+    /*
+        Read 2048 bytes
+    */
+
+    insw(
+        ATA_DATA,
+        buffer,
+        1024
+    );
+
+
 
     return true;
-}
-
-
-uint8_t sig1 = inb(ATA_LBA1);
-uint8_t sig2 = inb(ATA_LBA2);
-if (sig1 != 0x14 || sig2 != 0xEB) {
-    print("Not ATAPI device\n");
-    return false;
 }
