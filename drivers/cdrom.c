@@ -28,11 +28,11 @@ extern void print(char *text);
 
 
 
-#define STATUS_ERR  0x01
-#define STATUS_DRQ  0x08
-#define STATUS_DF   0x20
-#define STATUS_DRDY 0x40
-#define STATUS_BSY  0x80
+#define STATUS_ERR   0x01
+#define STATUS_DRQ   0x08
+#define STATUS_DF    0x20
+#define STATUS_DRDY  0x40
+#define STATUS_BSY   0x80
 
 
 
@@ -43,10 +43,9 @@ static bool cd_found = false;
 
 
 
-
 static void print_hex(uint8_t value)
 {
-    static const char hex[] =
+    char hex[] =
         "0123456789ABCDEF";
 
 
@@ -79,7 +78,7 @@ static void ata_delay(uint16_t base)
     inb(base + ATA_STATUS);
 }
 /*
-    Wait until device is not busy
+    Wait until the drive is no longer busy
 */
 
 static bool wait_not_busy(uint16_t base)
@@ -93,13 +92,11 @@ static bool wait_not_busy(uint16_t base)
             inb(base + ATA_STATUS);
 
 
-
         if(!(status & STATUS_BSY))
         {
             return true;
         }
     }
-
 
 
     print("ATAPI BUSY TIMEOUT\n");
@@ -112,13 +109,12 @@ static bool wait_not_busy(uint16_t base)
 
 
 /*
-    Wait for data request
+    Wait until drive requests data
 */
 
 static bool wait_drq(uint16_t base)
 {
     int timeout = 1000000;
-
 
 
     while(timeout--)
@@ -138,7 +134,7 @@ static bool wait_drq(uint16_t base)
 
         if(status & STATUS_DF)
         {
-            print("ATAPI DEVICE FAULT\n");
+            print("ATAPI FAULT\n");
             return false;
         }
 
@@ -175,9 +171,9 @@ static bool detect_atapi(
 
 
     /*
-        Select device
+        Select drive
 
-        0x40 = LBA mode
+        0x40 enables LBA mode
     */
 
     outb(
@@ -191,48 +187,18 @@ static bool detect_atapi(
 
 
     /*
-        Clear registers
+        Clear registers before IDENTIFY PACKET
     */
 
-    outb(
-        base + ATA_FEATURES,
-        0
-    );
-
-
-    outb(
-        base + ATA_SECCOUNT0,
-        0
-    );
-
-
-    outb(
-        base + ATA_LBA0,
-        0
-    );
-
-
-    outb(
-        base + ATA_LBA1,
-        0
-    );
-
-
-    outb(
-        base + ATA_LBA2,
-        0
-    );
+    outb(base + ATA_FEATURES, 0);
+    outb(base + ATA_SECCOUNT0, 0);
+    outb(base + ATA_LBA0, 0);
+    outb(base + ATA_LBA1, 0);
+    outb(base + ATA_LBA2, 0);
 
 
 
     ata_delay(base);
-
-
-
-    if(!wait_not_busy(base))
-    {
-        return false;
-    }
 
 
 
@@ -249,12 +215,32 @@ static bool detect_atapi(
 
 
 
+    /*
+        No device
+    */
+
     if(status == 0)
     {
         return false;
     }
 
 
+
+    /*
+        Wait for device ready
+    */
+
+    if(!wait_not_busy(base))
+    {
+        return false;
+    }
+
+
+
+    /*
+        ATAPI signature is stored
+        in LBA1 and LBA2
+    */
 
     uint8_t sig1 =
         inb(base + ATA_LBA1);
@@ -276,13 +262,6 @@ static bool detect_atapi(
     print("\n");
 
 
-
-    /*
-        ATAPI signatures:
-
-        14 EB = ATAPI
-        69 96 = ATAPI removable
-    */
 
     if(!((sig1 == 0x14 && sig2 == 0xEB) ||
          (sig1 == 0x69 && sig2 == 0x96)))
@@ -327,15 +306,12 @@ static bool detect_atapi(
 
 
     cd_base = base;
-
     cd_drive = drive;
-
     cd_found = true;
 
 
 
     print("ATAPI CD FOUND\n");
-
 
 
     return true;
@@ -345,6 +321,7 @@ void cdrom_init(void)
     print("CD INIT\n");
 
 
+
     cd_found = false;
     cd_base = 0;
     cd_drive = 0;
@@ -352,24 +329,24 @@ void cdrom_init(void)
 
 
     /*
-        QEMU normally places:
+        QEMU layout:
 
-        Primary IDE master   = HDD
-        Secondary IDE master = CD-ROM
+        Secondary IDE Master = CD-ROM
+        Primary IDE Master   = HDD
     */
 
-    static const uint16_t bases[] =
+    uint16_t bases[2] =
     {
-        0x170,   /* Secondary IDE */
-        0x1F0    /* Primary IDE */
+        0x170,
+        0x1F0
     };
 
 
 
-    static const uint8_t drives[] =
+    uint8_t drives[2] =
     {
-        0xA0,    /* Master */
-        0xB0     /* Slave */
+        0xA0,
+        0xB0
     };
 
 
@@ -417,6 +394,7 @@ void cdrom_init(void)
                 drives[d]))
             {
                 print("CD-ROM INITIALIZED\n");
+
                 return;
             }
         }
@@ -440,7 +418,7 @@ bool cdrom_read_sector(
 
 
     /*
-        Select CD drive
+        Select CD-ROM drive
     */
 
     outb(
@@ -461,8 +439,12 @@ bool cdrom_read_sector(
 
 
     /*
-        Tell drive we want
-        a 2048 byte transfer
+        Set transfer size.
+
+        ATAPI uses LBA1/LBA2
+        to specify byte count.
+
+        0x0800 = 2048 bytes
     */
 
     outb(
@@ -484,6 +466,10 @@ bool cdrom_read_sector(
 
 
 
+    /*
+        Send PACKET command
+    */
+
     outb(
         cd_base + ATA_COMMAND,
         ATA_CMD_PACKET
@@ -493,14 +479,18 @@ bool cdrom_read_sector(
 
     if(!wait_drq(cd_base))
     {
-        print("PACKET DRQ FAIL\n");
+        print("PACKET DRQ FAILED\n");
         return false;
     }
 
 
 
-    uint8_t packet[12];
 
+    /*
+        SCSI READ(10) packet
+    */
+
+    uint8_t packet[12];
 
 
     for(int i = 0;
@@ -512,11 +502,8 @@ bool cdrom_read_sector(
 
 
 
-    /*
-        SCSI READ(10)
-    */
-
-    packet[0] = ATAPI_READ10;
+    packet[0] =
+        ATAPI_READ10;
 
 
 
@@ -538,12 +525,16 @@ bool cdrom_read_sector(
 
 
     /*
-        Read one 2048-byte sector
+        Transfer 1 sector
     */
 
     packet[8] = 1;
 
 
+
+    /*
+        12 bytes = 6 words
+    */
 
     outsw(
         cd_base + ATA_DATA,
@@ -555,9 +546,10 @@ bool cdrom_read_sector(
 
     if(!wait_drq(cd_base))
     {
-        print("READ DATA DRQ FAIL\n");
+        print("READ DATA DRQ FAILED\n");
         return false;
     }
+
 
 
 
@@ -570,7 +562,7 @@ bool cdrom_read_sector(
 
     if(size == 0)
     {
-        print("ZERO CD SIZE\n");
+        print("CD RETURNED ZERO SIZE\n");
         return false;
     }
 
@@ -578,7 +570,7 @@ bool cdrom_read_sector(
 
     if(size > 2048)
     {
-        print("CD SIZE TOO LARGE\n");
+        print("CD RETURNED TOO MUCH DATA\n");
         return false;
     }
 
