@@ -1,10 +1,10 @@
 #include "ata.h"
 
-
 extern void print(char *text);
 
 
 static uint32_t total_sectors = 0;
+static bool ata_ready = false;
 
 
 
@@ -23,7 +23,6 @@ static void print_hex(uint8_t value)
 
 
 
-
 static void ata_delay(void)
 {
     inb(ATA_PRIMARY_ALTSTATUS);
@@ -34,7 +33,9 @@ static void ata_delay(void)
 
 
 
-
+/*
+    Wait until drive is ready
+*/
 
 bool ata_wait(void)
 {
@@ -47,11 +48,9 @@ bool ata_wait(void)
     {
         status = inb(ATA_PRIMARY_STATUS);
 
-
         if(!(status & ATA_SR_BSY))
             break;
     }
-
 
 
     if(timeout <= 0)
@@ -81,7 +80,6 @@ bool ata_wait(void)
     timeout = 1000000;
 
 
-
     while(timeout--)
     {
         status = inb(ATA_PRIMARY_STATUS);
@@ -101,11 +99,9 @@ bool ata_wait(void)
         }
 
 
-
         if(status & ATA_SR_DRQ)
             return true;
     }
-
 
 
     print("ATA DRQ TIMEOUT\n");
@@ -117,23 +113,18 @@ bool ata_wait(void)
 
 
 
-
-
 bool ata_detect(void)
 {
-
     print("ATA DETECT\n");
-
 
 
     outb(
         ATA_PRIMARY_HDDEVSEL,
-        ATA_MASTER
+        0xE0
     );
 
 
     ata_delay();
-
 
 
     outb(
@@ -145,10 +136,8 @@ bool ata_detect(void)
     ata_delay();
 
 
-
     uint8_t status =
         inb(ATA_PRIMARY_STATUS);
-
 
 
     print("ATA STATUS ");
@@ -158,13 +147,11 @@ bool ata_detect(void)
     print("\n");
 
 
-
     if(status == 0)
     {
         print("NO ATA DEVICE\n");
         return false;
     }
-
 
 
     if(!ata_wait())
@@ -175,9 +162,7 @@ bool ata_detect(void)
 
 
 
-
     uint16_t buffer[256];
-
 
 
     insw(
@@ -194,16 +179,11 @@ bool ata_detect(void)
         buffer[60];
 
 
-
     print("ATA DEVICE OK\n");
-
 
 
     return true;
 }
-
-
-
 
 
 
@@ -214,13 +194,14 @@ void ata_init(void)
     print("ATA INIT\n");
 
 
-    if(!ata_detect())
+    ata_ready = ata_detect();
+
+
+    if(!ata_ready)
     {
         print("ATA INIT FAILED\n");
     }
 }
-
-
 
 
 
@@ -234,15 +215,17 @@ bool ata_read_sector(
 )
 {
 
-    if(!ata_wait())
+    if(!ata_ready)
+    {
+        print("ATA NOT READY\n");
         return false;
+    }
 
 
 
     outb(
         ATA_PRIMARY_HDDEVSEL,
-        ATA_MASTER |
-        ((lba >> 24) & 0x0F)
+        0xE0 | ((lba >> 24) & 0x0F)
     );
 
 
@@ -281,6 +264,9 @@ bool ata_read_sector(
     );
 
 
+    ata_delay();
+
+
 
     if(!ata_wait())
         return false;
@@ -294,11 +280,8 @@ bool ata_read_sector(
     );
 
 
-
     return true;
 }
-
-
 
 
 
@@ -312,15 +295,17 @@ bool ata_write_sector(
 )
 {
 
-    if(!ata_wait())
+    if(!ata_ready)
+    {
+        print("ATA NOT READY\n");
         return false;
+    }
 
 
 
     outb(
         ATA_PRIMARY_HDDEVSEL,
-        ATA_MASTER |
-        ((lba >> 24) & 0x0F)
+        0xE0 | ((lba >> 24) & 0x0F)
     );
 
 
@@ -359,6 +344,9 @@ bool ata_write_sector(
     );
 
 
+    ata_delay();
+
+
 
     if(!ata_wait())
         return false;
@@ -370,7 +358,6 @@ bool ata_write_sector(
         buffer,
         256
     );
-
 
 
     ata_flush();
@@ -385,10 +372,12 @@ bool ata_write_sector(
 
 
 
-
-
 void ata_flush(void)
 {
+
+    if(!ata_ready)
+        return;
+
 
     outb(
         ATA_PRIMARY_COMMAND,
@@ -396,10 +385,10 @@ void ata_flush(void)
     );
 
 
+    ata_delay();
+
     ata_wait();
 }
-
-
 
 
 
