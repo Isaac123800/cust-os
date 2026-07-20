@@ -162,12 +162,10 @@ static bool detect_atapi(
     print("Checking IDE\n");
 
 
-
     outb(
         base + ATA_HDDEVSEL,
-        drive | 0x40
+        drive
     );
-
 
     ata_delay(base);
 
@@ -181,10 +179,8 @@ static bool detect_atapi(
 
 
 
-    outb(
-        base + ATA_COMMAND,
-        ATA_CMD_IDENTIFY_PACKET
-    );
+    if(!wait_not_busy(base))
+        return false;
 
 
 
@@ -202,14 +198,52 @@ static bool detect_atapi(
 
 
     if(status == 0)
+        return false;
+
+
+
+    uint8_t lba1 =
+        inb(base + ATA_LBA1);
+
+    uint8_t lba2 =
+        inb(base + ATA_LBA2);
+
+
+
+    print("SIG ");
+
+    print_hex(lba1);
+
+    print(" ");
+
+    print_hex(lba2);
+
+    print("\n");
+
+
+
+    if(!((lba1 == 0x14 && lba2 == 0xEB) ||
+         (lba1 == 0x69 && lba2 == 0x96)))
     {
         return false;
     }
 
 
 
+    print("ATAPI SIGNATURE OK\n");
+
+
+
+    outb(
+        base + ATA_COMMAND,
+        ATA_CMD_IDENTIFY_PACKET
+    );
+
+
+
     if(!wait_drq(base))
     {
+        print("IDENTIFY FAILED\n");
         return false;
     }
 
@@ -256,18 +290,17 @@ void cdrom_init(void)
         Primary IDE Master   = HDD
     */
 
-    uint16_t ports[] =
-    {
-        0x170,
-        0x1F0
-    };
+    static const uint16_t bases[] =
+{
+    0x1F0,
+    0x170
+};
 
-
-    uint8_t drives[] =
-    {
-        0xA0,
-        0xB0
-    };
+static const uint8_t drives[] =
+{
+    0xA0,
+    0xB0
+};
 
 
 
