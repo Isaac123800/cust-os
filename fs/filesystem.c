@@ -10,11 +10,9 @@
 FileSystem fs;
 
 
+
 /*
     Next free data sector
-
-    Tracks the next available
-    location for file data.
 */
 
 static uint32_t next_free_sector = FS_DATA_START;
@@ -23,8 +21,6 @@ static uint32_t next_free_sector = FS_DATA_START;
 
 /*
     External terminal output
-
-    Provided by kernel.
 */
 
 extern void print(char *text);
@@ -32,11 +28,14 @@ extern void print(char *text);
 
 
 /*
-    Internal memory helpers
+    Memory helper
 */
 
-
-static void memset(void *ptr, uint8_t value, uint32_t size)
+static void memset(
+    void *ptr,
+    uint8_t value,
+    uint32_t size
+)
 {
     uint8_t *p = (uint8_t *)ptr;
 
@@ -49,11 +48,8 @@ static void memset(void *ptr, uint8_t value, uint32_t size)
 
 
 
-
 /*
     Safe string copy
-
-    Prevents filename overflow.
 */
 
 static void strcpy_safe(
@@ -68,7 +64,6 @@ static void strcpy_safe(
     while(src[i] && i < max - 1)
     {
         dest[i] = src[i];
-
         i++;
     }
 
@@ -78,10 +73,8 @@ static void strcpy_safe(
 
 
 
-
-
 /*
-    Compare two strings
+    Compare strings
 */
 
 static bool string_equal(
@@ -99,15 +92,12 @@ static bool string_equal(
             return false;
         }
 
-
         i++;
     }
 
 
     return a[i] == b[i];
 }
-
-
 
 
 
@@ -132,7 +122,7 @@ static uint32_t sectors_needed(
     Save superblock
 */
 
-static void save_superblock(void)
+static bool save_superblock(void)
 {
     uint8_t buffer[FS_SECTOR_SIZE];
 
@@ -144,13 +134,9 @@ static void save_superblock(void)
     );
 
 
-    /*
-        Safety check
-    */
-
     if(sizeof(SuperBlock) > FS_SECTOR_SIZE)
     {
-        return;
+        return false;
     }
 
 
@@ -169,7 +155,7 @@ static void save_superblock(void)
 
 
 
-    disk_write(
+    return disk_write(
         FS_SUPERBLOCK_SECTOR,
         buffer
     );
@@ -226,14 +212,18 @@ static bool load_superblock(void)
 
 
 
-
     return true;
-    }
-    /*
+}
+
+
+
+
+
+/*
     Save file table
 */
 
-static void save_file_table(void)
+static bool save_file_table(void)
 {
     uint8_t buffer[FS_SECTOR_SIZE];
 
@@ -281,18 +271,17 @@ static void save_file_table(void)
             sector,
             buffer))
         {
-            return;
+            return false;
         }
 
 
         sector++;
     }
+
+
+
+    return true;
 }
-
-
-
-
-
 /*
     Load file table
 */
@@ -350,13 +339,16 @@ static bool load_file_table(void)
 
     return true;
 }
-    /*
-    Format filesystem
 
-    Creates a fresh filesystem.
+
+
+
+
+/*
+    Format filesystem
 */
 
-void fs_format(void)
+bool fs_format(void)
 {
     memset(
         &fs,
@@ -401,10 +393,29 @@ void fs_format(void)
 
 
 
-    save_superblock();
+    print("Writing superblock...\n");
 
 
-    save_file_table();
+    if(!save_superblock())
+    {
+        print("Superblock failed\n");
+        return false;
+    }
+
+
+
+    print("Writing file table...\n");
+
+
+    if(!save_file_table())
+    {
+        print("File table failed\n");
+        return false;
+    }
+
+
+
+    return true;
 }
 
 
@@ -460,7 +471,10 @@ void fs_init(void)
 
 
 
-    fs_format();
+    if(!fs_format())
+    {
+        print("Filesystem format failed\n");
+    }
 }
 
 
@@ -468,7 +482,7 @@ void fs_init(void)
 
 
 /*
-    Save filesystem changes
+    Sync filesystem changes
 */
 
 void fs_sync(void)
@@ -482,15 +496,10 @@ void fs_sync(void)
 
     save_superblock();
 
-
     save_file_table();
 }
 /*
     Find file by name
-
-    Returns:
-        file index
-        -1 if not found
 */
 
 int fs_find(char *name)
@@ -553,9 +562,6 @@ static int find_free_entry(void)
 
 /*
     Allocate sectors
-
-    Returns the first sector
-    of the allocated block.
 */
 
 static uint32_t allocate_sectors(
@@ -598,11 +604,14 @@ static uint32_t allocate_sectors(
 
 
     return start;
-}/*
-    Create file
+}
 
-    Equivalent to:
-    touch filename
+
+
+
+
+/*
+    Create file
 */
 
 bool fs_create(char *name)
@@ -613,10 +622,6 @@ bool fs_create(char *name)
     }
 
 
-
-    /*
-        Do not allow duplicate files
-    */
 
     if(fs_find(name) >= 0)
     {
@@ -663,17 +668,9 @@ bool fs_create(char *name)
 
 
 
-    file->size =
-        0;
+    file->size = 0;
 
 
-
-    /*
-        Reserve one sector initially.
-
-        This gives empty files
-        a valid disk location.
-    */
 
     file->start_sector =
         allocate_sectors(1);
@@ -696,8 +693,13 @@ bool fs_create(char *name)
 
     return true;
 }
+
+
+
+
+
 /*
-    Write data to file
+    Write file data
 */
 
 bool fs_write(
@@ -741,11 +743,6 @@ bool fs_write(
         sectors_needed(size);
 
 
-
-    /*
-        Allocate enough space
-        for the file.
-    */
 
     uint32_t start =
         allocate_sectors(sectors);
@@ -816,11 +813,8 @@ bool fs_write(
 
     return true;
 }
-    /*
+/*
     Read file data
-
-    Loads file contents
-    from disk into memory.
 */
 
 bool fs_read(
@@ -915,11 +909,13 @@ bool fs_read(
 
     return true;
 }
+
+
+
+
+
 /*
     Delete file
-
-    Removes file entry
-    from filesystem.
 */
 
 bool fs_delete(char *name)
@@ -1001,15 +997,19 @@ uint32_t fs_size(char *name)
 
     return fs.files[index].size;
 }
+
+
+
+
+
 /*
     List files
-
-    Used by ls command.
 */
 
 void fs_list(void)
 {
     bool found = false;
+
 
 
     for(int i = 0;
@@ -1036,9 +1036,4 @@ void fs_list(void)
     {
         print("No files\n");
     }
-
-
-
-
-    return true;
 }
