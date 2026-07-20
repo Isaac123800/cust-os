@@ -2,7 +2,9 @@
 
 #include "../fs/filesystem.h"
 #include "../fs/iso9660.h"
+
 #include "../drivers/cdrom.h"
+#include "../drivers/disk.h"
 
 
 extern void print(char *text);
@@ -19,32 +21,63 @@ bool install_system(void)
     print("\nInstalling CustOS...\n\n");
 
 
+
+    /*
+        Initialize hard disk first
+    */
+
+    print("Initializing disk...\n");
+
+    disk_init();
+
+
+
+    /*
+        Initialize installer CD
+    */
+
     print("Initializing CD-ROM...\n");
 
     cdrom_init();
 
 
 
+
+    /*
+        Format target drive
+    */
+
     print("Formatting drive...\n");
 
 
-    fs_format();
-
+    if(!fs_format())
+    {
+        print("Format failed\n");
+        return false;
+    }
 
 
     print("Format complete\n");
 
 
 
-    print("Listing ISO...\n");
 
+    /*
+        Show ISO contents
+    */
+
+    print("Listing ISO...\n");
 
     iso_list_root();
 
 
 
-    print("\nReading KERNEL.BIN...\n");
 
+    /*
+        Load kernel from installer CD
+    */
+
+    print("\nReading KERNEL.BIN...\n");
 
 
     uint32_t size = 0;
@@ -67,6 +100,11 @@ bool install_system(void)
 
 
 
+
+    /*
+        Create kernel file
+    */
+
     if(!fs_create("KERNEL.BIN"))
     {
         print("Create failed\n");
@@ -75,6 +113,11 @@ bool install_system(void)
     }
 
 
+
+
+    /*
+        Write kernel to HDD
+    */
 
     if(!fs_write(
         "KERNEL.BIN",
@@ -91,6 +134,10 @@ bool install_system(void)
     print("Kernel copied\n");
 
 
+
+    /*
+        Save filesystem changes
+    */
 
     fs_sync();
 
