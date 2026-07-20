@@ -28,10 +28,10 @@ extern void print(char *text);
 
 
 
-#define STATUS_ERR   0x01
-#define STATUS_DRQ   0x08
-#define STATUS_DF    0x20
-#define STATUS_BSY   0x80
+#define STATUS_ERR  0x01
+#define STATUS_DRQ  0x08
+#define STATUS_DF   0x20
+#define STATUS_BSY  0x80
 
 
 
@@ -68,6 +68,7 @@ static void print_hex(uint8_t value)
 
 
 
+
 static void ata_delay(uint16_t base)
 {
     inb(base + ATA_STATUS);
@@ -93,8 +94,11 @@ static bool wait_not_busy(uint16_t base)
     }
 
 
+    print("BUSY TIMEOUT\n");
+
     return false;
 }
+
 
 
 
@@ -115,6 +119,7 @@ static bool wait_drq(uint16_t base)
 
         if(status & STATUS_ERR)
         {
+            print("ATA ERROR\n");
             return false;
         }
 
@@ -122,18 +127,22 @@ static bool wait_drq(uint16_t base)
 
         if(status & STATUS_DF)
         {
+            print("ATA FAULT\n");
             return false;
         }
 
 
 
-        if(status & STATUS_DRQ)
+        if(!(status & STATUS_BSY) &&
+           (status & STATUS_DRQ))
         {
             return true;
         }
     }
 
 
+
+    print("DRQ TIMEOUT\n");
 
     return false;
 }
@@ -154,23 +163,15 @@ static bool detect_atapi(
 
 
 
-    /*
-        Select device
-    */
-
     outb(
         base + ATA_HDDEVSEL,
-        drive
+        drive | 0x40
     );
 
 
     ata_delay(base);
 
 
-
-    /*
-        Clear registers
-    */
 
     outb(base + ATA_FEATURES, 0);
     outb(base + ATA_SECCOUNT0, 0);
@@ -200,20 +201,12 @@ static bool detect_atapi(
 
 
 
-    /*
-        No device
-    */
-
     if(status == 0)
     {
         return false;
     }
 
 
-
-    /*
-        Wait for IDENTIFY data
-    */
 
     if(!wait_drq(base))
     {
@@ -223,7 +216,6 @@ static bool detect_atapi(
 
 
     uint16_t identify[256];
-
 
 
     insw(
@@ -239,9 +231,7 @@ static bool detect_atapi(
 
 
     cd_base = base;
-
     cd_drive = drive;
-
     cd_found = true;
 
 
@@ -260,13 +250,10 @@ void cdrom_init(void)
 
 
     /*
-        IDE ports:
+        IDE layout:
 
-        0x1F0 = Primary
-        0x170 = Secondary
-
-        QEMU usually puts
-        CD-ROM on secondary master.
+        Secondary IDE Master = CD-ROM
+        Primary IDE Master   = HDD
     */
 
     uint16_t ports[] =
@@ -274,7 +261,6 @@ void cdrom_init(void)
         0x170,
         0x1F0
     };
-
 
 
     uint8_t drives[] =
@@ -349,9 +335,13 @@ bool cdrom_read_sector(
 
 
 
+    /*
+        Select ATAPI drive
+    */
+
     outb(
         cd_base + ATA_HDDEVSEL,
-        cd_drive
+        cd_drive | 0x40
     );
 
 
@@ -366,10 +356,9 @@ bool cdrom_read_sector(
 
 
 
-    /*
-        Set ATAPI transfer size
 
-        2048 bytes
+    /*
+        Request 2048 byte transfer
     */
 
     outb(
@@ -380,20 +369,16 @@ bool cdrom_read_sector(
 
     outb(
         cd_base + ATA_LBA1,
-        0
+        0x00
     );
 
 
     outb(
         cd_base + ATA_LBA2,
-        8
+        0x08
     );
 
 
-
-    /*
-        Start PACKET command
-    */
 
     outb(
         cd_base + ATA_COMMAND,
@@ -404,9 +389,13 @@ bool cdrom_read_sector(
 
     if(!wait_drq(cd_base))
     {
-        print("PACKET FAILED\n");
+        print("PACKET DRQ FAILED\n");
         return false;
     }
+
+
+
+    print("PACKET READY\n");
 
 
 
@@ -442,6 +431,10 @@ bool cdrom_read_sector(
 
 
 
+    /*
+        Read 1 sector
+    */
+
     packet[8] = 1;
 
 
@@ -454,11 +447,19 @@ bool cdrom_read_sector(
 
 
 
+    print("PACKET SENT\n");
+
+
+
     if(!wait_drq(cd_base))
     {
-        print("DATA FAILED\n");
+        print("DATA DRQ FAILED\n");
         return false;
     }
+
+
+
+    print("READ DATA READY\n");
 
 
 
@@ -471,7 +472,7 @@ bool cdrom_read_sector(
 
     if(size == 0)
     {
-        print("EMPTY CD RESPONSE\n");
+        print("ZERO DATA SIZE\n");
         return false;
     }
 
@@ -479,7 +480,7 @@ bool cdrom_read_sector(
 
     if(size > 2048)
     {
-        print("CD RESPONSE TOO BIG\n");
+        print("DATA TOO LARGE\n");
         return false;
     }
 
@@ -490,6 +491,10 @@ bool cdrom_read_sector(
         buffer,
         size / 2
     );
+
+
+
+    print("SECTOR READ OK\n");
 
 
 
