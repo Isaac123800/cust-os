@@ -50,12 +50,14 @@ extern void print(char *text);
 
 
 
+#define CD_SECTOR_SIZE 2048
+
+
 
 
 static uint16_t cd_base = 0;
 static uint8_t  cd_drive = 0;
 static bool     cd_found = false;
-
 
 
 
@@ -90,7 +92,6 @@ static void print_hex(uint8_t value)
 
 
 
-
 static void ata_delay(uint16_t base)
 {
     /*
@@ -102,7 +103,6 @@ static void ata_delay(uint16_t base)
     inb(base + ATA_STATUS);
     inb(base + ATA_STATUS);
 }
-
 
 
 
@@ -131,7 +131,6 @@ static bool wait_not_busy(uint16_t base)
 
     return false;
 }
-
 
 
 
@@ -191,8 +190,8 @@ static bool detect_atapi(
     /*
         Select device
 
-        Keep this as drive only.
-        Do not add 0x40 here.
+        IMPORTANT:
+        Do not use drive | 0x40 here.
     */
 
     outb(
@@ -205,8 +204,10 @@ static bool detect_atapi(
 
 
 
+
+
     /*
-        Clear registers
+        Clear registers before IDENTIFY PACKET
     */
 
     outb(base + ATA_FEATURES, 0);
@@ -214,6 +215,8 @@ static bool detect_atapi(
     outb(base + ATA_LBA0, 0);
     outb(base + ATA_LBA1, 0);
     outb(base + ATA_LBA2, 0);
+
+
 
 
 
@@ -226,8 +229,44 @@ static bool detect_atapi(
 
 
 
+
     /*
-        Check ATAPI signature
+        Read status first
+
+        This is required for
+        the working QEMU detection.
+    */
+
+    uint8_t status =
+        inb(base + ATA_STATUS);
+
+
+
+    print("STATUS ");
+
+    print_hex(status);
+
+    print("\n");
+
+
+
+    if(status == 0)
+    {
+        return false;
+    }
+
+
+
+
+
+
+    /*
+        ATAPI signature
+
+        LBA1/LBA2:
+        14 EB
+        or
+        69 96
     */
 
     uint8_t sig1 =
@@ -251,6 +290,9 @@ static bool detect_atapi(
 
 
 
+
+
+
     if(!((sig1 == ATAPI_SIG1 &&
           sig2 == ATAPI_SIG2)
           ||
@@ -268,8 +310,10 @@ static bool detect_atapi(
 
 
 
+
+
     /*
-        Send IDENTIFY PACKET
+        IDENTIFY PACKET
     */
 
     outb(
@@ -281,7 +325,7 @@ static bool detect_atapi(
 
     if(!wait_drq(base))
     {
-        print("IDENTIFY FAILED\n");
+        print("IDENTIFY PACKET FAILED\n");
         return false;
     }
 
@@ -289,13 +333,10 @@ static bool detect_atapi(
 
 
 
-    /*
-        Read IDENTIFY data
 
-        256 words = 512 bytes
-    */
 
     uint16_t identify[256];
+
 
 
     insw(
@@ -303,6 +344,8 @@ static bool detect_atapi(
         identify,
         256
     );
+
+
 
 
 
@@ -320,6 +363,23 @@ static bool detect_atapi(
 
     return true;
 }
+static void print_port(uint16_t port)
+{
+    print_hex(
+        (port >> 8) & 0xFF
+    );
+
+
+    print_hex(
+        port & 0xFF
+    );
+}
+
+
+
+
+
+
 void cdrom_init(void)
 {
     print("CD INIT\n");
@@ -332,16 +392,14 @@ void cdrom_init(void)
 
 
 
+
+
     /*
-        IDE channels:
+        Secondary IDE first
 
         0x170 = Secondary
         0x1F0 = Primary
-
-        Usually:
-        Secondary Master = CD-ROM
     */
-
 
     uint16_t ports[] =
     {
@@ -361,6 +419,8 @@ void cdrom_init(void)
 
 
 
+
+
     for(int p = 0;
         p < 2;
         p++)
@@ -372,17 +432,14 @@ void cdrom_init(void)
 
             print("CHECK ");
 
-            print_hex(
-                (ports[p] >> 8) & 0xFF
-            );
-
-
-            print_hex(
-                ports[p] & 0xFF
+            print_port(
+                ports[p]
             );
 
 
             print(" ");
+
+
 
 
 
@@ -399,6 +456,9 @@ void cdrom_init(void)
 
 
 
+
+
+
             if(detect_atapi(
                 ports[p],
                 drives[d]))
@@ -408,6 +468,8 @@ void cdrom_init(void)
             }
         }
     }
+
+
 
 
 
@@ -442,11 +504,10 @@ static bool cdrom_request_sense(void)
 
 
     /*
-        Request sense data
+        REQUEST SENSE
 
-        Allocation length = 18 bytes
+        Ask drive why the last command failed
     */
-
 
     outb(
         cd_base + ATA_FEATURES,
@@ -454,6 +515,7 @@ static bool cdrom_request_sense(void)
     );
 
 
+   
     outb(
         cd_base + ATA_LBA1,
         18
@@ -491,6 +553,7 @@ static bool cdrom_request_sense(void)
 
     packet[0] = ATAPI_REQUEST_SENSE;
 
+
     packet[4] = 18;
 
 
@@ -513,6 +576,7 @@ static bool cdrom_request_sense(void)
 
 
     uint8_t sense[18];
+
 
 
     insw(
@@ -556,8 +620,10 @@ bool cdrom_read_sector(
 
 
 
+
+
     /*
-        Select CD-ROM
+        Select CD drive
     */
 
     outb(
@@ -567,6 +633,8 @@ bool cdrom_read_sector(
 
 
     ata_delay(cd_base);
+
+
 
 
 
@@ -580,7 +648,9 @@ bool cdrom_read_sector(
 
 
     /*
-        Request 2048 byte transfer
+        Set ATAPI transfer size
+
+        2048 byte sector
     */
 
     outb(
@@ -589,6 +659,7 @@ bool cdrom_read_sector(
     );
 
 
+    
     outb(
         cd_base + ATA_LBA1,
         0
@@ -602,8 +673,10 @@ bool cdrom_read_sector(
 
 
 
+
+
     /*
-        Start ATAPI PACKET command
+        Send PACKET command
     */
 
     outb(
@@ -627,6 +700,7 @@ bool cdrom_read_sector(
 
 
 
+
     /*
         SCSI READ(10)
     */
@@ -637,21 +711,30 @@ bool cdrom_read_sector(
     };
 
 
+
     packet[0] = ATAPI_READ10;
 
 
-    packet[2] = (sector >> 24) & 0xFF;
 
-    packet[3] = (sector >> 16) & 0xFF;
+    packet[2] =
+        (sector >> 24) & 0xFF;
 
-    packet[4] = (sector >> 8) & 0xFF;
 
-    packet[5] = sector & 0xFF;
+    packet[3] =
+        (sector >> 16) & 0xFF;
+
+
+    packet[4] =
+        (sector >> 8) & 0xFF;
+
+
+    packet[5] =
+        sector & 0xFF;
 
 
 
     /*
-        Read one sector
+        Transfer one CD sector
     */
 
     packet[8] = 1;
@@ -663,6 +746,8 @@ bool cdrom_read_sector(
         packet,
         6
     );
+
+    ata_delay(cd_base);
 
 
 
@@ -683,9 +768,9 @@ bool cdrom_read_sector(
 
     print("READ DATA READY\n");
     /*
-        Read transfer size from ATA registers
+        Read returned byte count
 
-        LBA1/LBA2 contain the byte count
+        ATAPI reports this in LBA1/LBA2
     */
 
     uint16_t size =
@@ -695,55 +780,52 @@ bool cdrom_read_sector(
 
 
 
-    if(size == 0)
-    {
-        print("ZERO DATA SIZE\n");
-
-        cdrom_request_sense();
-
-        return false;
-    }
-
 
 
     /*
-        ATAPI CD sectors are normally 2048 bytes
-
-        Prevent buffer overflow
+        ISO9660 sectors are always
+        exactly 2048 bytes
     */
 
-    if(size > 2048)
-    {
-        print("DATA TOO LARGE\n");
+if(size == 0)
+{
+    print("ZERO DATA SIZE\n");
 
-        cdrom_request_sense();
+    cdrom_request_sense();
 
-        return false;
-    }
+    return false;
+}
+
+
+if(size > CD_SECTOR_SIZE)
+{
+    print("DATA TOO LARGE\n");
+
+    cdrom_request_sense();
+
+    return false;
+}
+
+
+insw(
+    cd_base + ATA_DATA,
+    buffer,
+    size / 2
+);
+
+
+/* Clear unused bytes */
+for(uint16_t i = size; i < CD_SECTOR_SIZE; i++)
+{
+    buffer[i] = 0;
+}
 
 
 
 
 
     /*
-        Transfer words
-
-        insw count is WORDS,
-        not bytes
-    */
-
-    insw(
-        cd_base + ATA_DATA,
-        buffer,
-        size / 2
-    );
-
-
-
-
-
-    /*
-        Wait for command completion
+        Wait until command completes
     */
 
     if(!wait_not_busy(cd_base))
@@ -767,23 +849,6 @@ bool cdrom_read_sector(
         cdrom_request_sense();
 
         return false;
-    }
-
-
-
-
-
-    /*
-        Clear unused part of the buffer
-
-        Keeps caller data predictable
-    */
-
-    for(uint16_t i = size;
-        i < 2048;
-        i++)
-    {
-        buffer[i] = 0;
     }
 
 
