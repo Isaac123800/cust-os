@@ -1,72 +1,129 @@
 #include "ata.h"
 
 
+extern void print(char *text);
+
+
 static uint32_t total_sectors = 0;
 
 
-/*
-    Wait until ATA drive is ready
 
-    Returns false on timeout/error
-*/
-
-bool ata_wait(void)
+static void print_hex(uint8_t value)
 {
-    uint8_t status;
+    char hex[] = "0123456789ABCDEF";
 
-    int timeout = 1000000;
+    char out[3];
 
+    out[0] = hex[(value >> 4) & 0xF];
+    out[1] = hex[value & 0xF];
+    out[2] = 0;
 
-    while((status = inb(ATA_PRIMARY_STATUS)) & ATA_SR_BSY)
-    {
-        timeout--;
-
-        if(timeout <= 0)
-            return false;
-    }
-
-
-    if(status & ATA_SR_ERR)
-        return false;
-
-
-    if(status & ATA_SR_DF)
-        return false;
+    print(out);
+}
 
 
 
-    timeout = 1000000;
 
-
-    while(!(status = inb(ATA_PRIMARY_STATUS)) & ATA_SR_DRQ)
-    {
-        timeout--;
-
-        if(timeout <= 0)
-            return false;
-
-
-        if(status & ATA_SR_ERR)
-            return false;
-    }
-
-
-    return true;
+static void ata_delay(void)
+{
+    inb(ATA_PRIMARY_ALTSTATUS);
+    inb(ATA_PRIMARY_ALTSTATUS);
+    inb(ATA_PRIMARY_ALTSTATUS);
+    inb(ATA_PRIMARY_ALTSTATUS);
 }
 
 
 
 
 
-/*
-    Detect ATA drive
+bool ata_wait(void)
+{
+    int timeout = 1000000;
 
-    Reads IDENTIFY information
-*/
+    uint8_t status;
+
+
+    while(timeout--)
+    {
+        status = inb(ATA_PRIMARY_STATUS);
+
+
+        if(!(status & ATA_SR_BSY))
+            break;
+    }
+
+
+
+    if(timeout <= 0)
+    {
+        print("ATA BUSY TIMEOUT\n");
+        return false;
+    }
+
+
+
+    if(status & ATA_SR_ERR)
+    {
+        print("ATA ERROR\n");
+        return false;
+    }
+
+
+
+    if(status & ATA_SR_DF)
+    {
+        print("ATA DEVICE FAULT\n");
+        return false;
+    }
+
+
+
+    timeout = 1000000;
+
+
+
+    while(timeout--)
+    {
+        status = inb(ATA_PRIMARY_STATUS);
+
+
+        if(status & ATA_SR_ERR)
+        {
+            print("ATA ERROR WAITING DRQ\n");
+            return false;
+        }
+
+
+        if(status & ATA_SR_DF)
+        {
+            print("ATA FAULT WAITING DRQ\n");
+            return false;
+        }
+
+
+
+        if(status & ATA_SR_DRQ)
+            return true;
+    }
+
+
+
+    print("ATA DRQ TIMEOUT\n");
+
+    return false;
+}
+
+
+
+
+
+
 
 bool ata_detect(void)
 {
-    uint8_t status;
+
+    print("ATA DETECT\n");
+
 
 
     outb(
@@ -75,7 +132,7 @@ bool ata_detect(void)
     );
 
 
-    io_wait();
+    ata_delay();
 
 
 
@@ -85,34 +142,42 @@ bool ata_detect(void)
     );
 
 
+    ata_delay();
 
-    status =
+
+
+    uint8_t status =
         inb(ATA_PRIMARY_STATUS);
 
 
 
+    print("ATA STATUS ");
+
+    print_hex(status);
+
+    print("\n");
+
+
+
     if(status == 0)
-        return false;
-
-
-
-    while(1)
     {
-        status =
-            inb(ATA_PRIMARY_STATUS);
-
-
-        if(status & ATA_SR_ERR)
-            return false;
-
-
-        if(status & ATA_SR_DRQ)
-            break;
+        print("NO ATA DEVICE\n");
+        return false;
     }
 
 
 
+    if(!ata_wait())
+    {
+        print("IDENTIFY FAILED\n");
+        return false;
+    }
+
+
+
+
     uint16_t buffer[256];
+
 
 
     insw(
@@ -123,18 +188,14 @@ bool ata_detect(void)
 
 
 
-    /*
-        IDENTIFY words:
-
-        word 60 = lower 16 bits
-        word 61 = upper 16 bits
-
-        LBA28 sector count
-    */
-
     total_sectors =
         ((uint32_t)buffer[61] << 16)
-        | buffer[60];
+        |
+        buffer[60];
+
+
+
+    print("ATA DEVICE OK\n");
 
 
 
@@ -145,22 +206,27 @@ bool ata_detect(void)
 
 
 
-/*
-    Initialize ATA driver
-*/
+
+
 
 void ata_init(void)
 {
-    ata_detect();
+    print("ATA INIT\n");
+
+
+    if(!ata_detect())
+    {
+        print("ATA INIT FAILED\n");
+    }
 }
 
 
 
 
 
-/*
-    Read one sector
-*/
+
+
+
 
 bool ata_read_sector(
     uint32_t lba,
@@ -180,7 +246,7 @@ bool ata_read_sector(
     );
 
 
-    io_wait();
+    ata_delay();
 
 
 
@@ -228,6 +294,7 @@ bool ata_read_sector(
     );
 
 
+
     return true;
 }
 
@@ -235,9 +302,9 @@ bool ata_read_sector(
 
 
 
-/*
-    Write one sector
-*/
+
+
+
 
 bool ata_write_sector(
     uint32_t lba,
@@ -257,7 +324,7 @@ bool ata_write_sector(
     );
 
 
-    io_wait();
+    ata_delay();
 
 
 
@@ -305,6 +372,7 @@ bool ata_write_sector(
     );
 
 
+
     ata_flush();
 
 
@@ -315,12 +383,13 @@ bool ata_write_sector(
 
 
 
-/*
-    Flush ATA cache
-*/
+
+
+
 
 void ata_flush(void)
 {
+
     outb(
         ATA_PRIMARY_COMMAND,
         ATA_CMD_CACHE_FLUSH
@@ -334,9 +403,9 @@ void ata_flush(void)
 
 
 
-/*
-    Return detected disk size
-*/
+
+
+
 
 uint32_t ata_sector_count(void)
 {
