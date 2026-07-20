@@ -6,6 +6,7 @@ extern void print(char *text);
 
 
 
+
 #define ATA_DATA        0x00
 #define ATA_ERROR       0x01
 #define ATA_FEATURES    0x01
@@ -19,12 +20,16 @@ extern void print(char *text);
 
 
 
+
 #define ATA_CMD_PACKET            0xA0
 #define ATA_CMD_IDENTIFY_PACKET   0xA1
 
 
 
+
 #define ATAPI_READ10              0x28
+#define ATAPI_REQUEST_SENSE       0x03
+
 
 
 
@@ -35,9 +40,24 @@ extern void print(char *text);
 
 
 
+
+#define ATAPI_SIG1 0x14
+#define ATAPI_SIG2 0xEB
+
+#define ATAPI_SIG3 0x69
+#define ATAPI_SIG4 0x96
+
+
+
+
+
+
 static uint16_t cd_base = 0;
-static uint8_t cd_drive = 0;
-static bool cd_found = false;
+static uint8_t  cd_drive = 0;
+static bool     cd_found = false;
+
+
+
 
 
 
@@ -69,13 +89,26 @@ static void print_hex(uint8_t value)
 
 
 
+
+
 static void ata_delay(uint16_t base)
 {
+    /*
+        ATA 400ns delay
+    */
+
     inb(base + ATA_STATUS);
     inb(base + ATA_STATUS);
     inb(base + ATA_STATUS);
     inb(base + ATA_STATUS);
 }
+
+
+
+
+
+
+
 static bool wait_not_busy(uint16_t base)
 {
     int timeout = 1000000;
@@ -127,7 +160,7 @@ static bool wait_drq(uint16_t base)
 
         if(status & STATUS_DF)
         {
-            print("ATA FAULT\n");
+            print("ATA DEVICE FAULT\n");
             return false;
         }
 
@@ -146,14 +179,6 @@ static bool wait_drq(uint16_t base)
 
     return false;
 }
-
-
-
-
-
-
-
-
 static bool detect_atapi(
     uint16_t base,
     uint8_t drive
@@ -162,14 +187,27 @@ static bool detect_atapi(
     print("Checking IDE\n");
 
 
+
+    /*
+        Select device
+
+        Keep this as drive only.
+        Do not add 0x40 here.
+    */
+
     outb(
         base + ATA_HDDEVSEL,
         drive
     );
 
+
     ata_delay(base);
 
 
+
+    /*
+        Clear registers
+    */
 
     outb(base + ATA_FEATURES, 0);
     outb(base + ATA_SECCOUNT0, 0);
@@ -180,50 +218,44 @@ static bool detect_atapi(
 
 
     if(!wait_not_busy(base))
+    {
         return false;
+    }
 
 
 
-    uint8_t status =
-        inb(base + ATA_STATUS);
 
 
+    /*
+        Check ATAPI signature
+    */
 
-    print("STATUS ");
-
-    print_hex(status);
-
-    print("\n");
-
-
-
-    if(status == 0)
-        return false;
-
-
-
-    uint8_t lba1 =
+    uint8_t sig1 =
         inb(base + ATA_LBA1);
 
-    uint8_t lba2 =
+
+    uint8_t sig2 =
         inb(base + ATA_LBA2);
 
 
 
     print("SIG ");
 
-    print_hex(lba1);
+    print_hex(sig1);
 
     print(" ");
 
-    print_hex(lba2);
+    print_hex(sig2);
 
     print("\n");
 
 
 
-    if(!((lba1 == 0x14 && lba2 == 0xEB) ||
-         (lba1 == 0x69 && lba2 == 0x96)))
+    if(!((sig1 == ATAPI_SIG1 &&
+          sig2 == ATAPI_SIG2)
+          ||
+         (sig1 == ATAPI_SIG3 &&
+          sig2 == ATAPI_SIG4)))
     {
         return false;
     }
@@ -233,6 +265,12 @@ static bool detect_atapi(
     print("ATAPI SIGNATURE OK\n");
 
 
+
+
+
+    /*
+        Send IDENTIFY PACKET
+    */
 
     outb(
         base + ATA_COMMAND,
@@ -248,6 +286,14 @@ static bool detect_atapi(
     }
 
 
+
+
+
+    /*
+        Read IDENTIFY data
+
+        256 words = 512 bytes
+    */
 
     uint16_t identify[256];
 
@@ -265,7 +311,9 @@ static bool detect_atapi(
 
 
     cd_base = base;
+
     cd_drive = drive;
+
     cd_found = true;
 
 
@@ -277,6 +325,7 @@ void cdrom_init(void)
     print("CD INIT\n");
 
 
+
     cd_found = false;
     cd_base = 0;
     cd_drive = 0;
@@ -284,23 +333,31 @@ void cdrom_init(void)
 
 
     /*
-        IDE layout:
+        IDE channels:
 
-        Secondary IDE Master = CD-ROM
-        Primary IDE Master   = HDD
+        0x170 = Secondary
+        0x1F0 = Primary
+
+        Usually:
+        Secondary Master = CD-ROM
     */
 
-    static const uint16_t bases[] =
-{
-    0x1F0,
-    0x170
-};
 
-static const uint8_t drives[] =
-{
-    0xA0,
-    0xB0
-};
+    uint16_t ports[] =
+    {
+        0x170,
+        0x1F0
+    };
+
+
+
+    uint8_t drives[] =
+    {
+        0xA0,
+        0xB0
+    };
+
+
 
 
 
@@ -313,8 +370,7 @@ static const uint8_t drives[] =
             d++)
         {
 
-            print("PORT ");
-
+            print("CHECK ");
 
             print_hex(
                 (ports[p] >> 8) & 0xFF
@@ -341,6 +397,8 @@ static const uint8_t drives[] =
 
 
 
+
+
             if(detect_atapi(
                 ports[p],
                 drives[d]))
@@ -355,6 +413,136 @@ static const uint8_t drives[] =
 
     print("NO ATAPI CD-ROM FOUND\n");
 }
+static bool cdrom_request_sense(void)
+{
+    if(!cd_found)
+    {
+        return false;
+    }
+
+
+
+    outb(
+        cd_base + ATA_HDDEVSEL,
+        cd_drive
+    );
+
+
+    ata_delay(cd_base);
+
+
+
+    if(!wait_not_busy(cd_base))
+    {
+        return false;
+    }
+
+
+
+
+
+    /*
+        Request sense data
+
+        Allocation length = 18 bytes
+    */
+
+
+    outb(
+        cd_base + ATA_FEATURES,
+        0
+    );
+
+
+    outb(
+        cd_base + ATA_LBA1,
+        18
+    );
+
+
+    outb(
+        cd_base + ATA_LBA2,
+        0
+    );
+
+
+
+    outb(
+        cd_base + ATA_COMMAND,
+        ATA_CMD_PACKET
+    );
+
+
+
+    if(!wait_drq(cd_base))
+    {
+        return false;
+    }
+
+
+
+
+
+    uint8_t packet[12] =
+    {
+        0
+    };
+
+
+    packet[0] = ATAPI_REQUEST_SENSE;
+
+    packet[4] = 18;
+
+
+
+    outsw(
+        cd_base + ATA_DATA,
+        packet,
+        6
+    );
+
+
+
+    if(!wait_drq(cd_base))
+    {
+        return false;
+    }
+
+
+
+
+
+    uint8_t sense[18];
+
+
+    insw(
+        cd_base + ATA_DATA,
+        sense,
+        9
+    );
+
+
+
+    print("SENSE ");
+
+    print_hex(
+        sense[2] & 0x0F
+    );
+
+    print("\n");
+
+
+
+    return true;
+}
+
+
+
+
+
+
+
+
 bool cdrom_read_sector(
     uint32_t sector,
     uint8_t *buffer
@@ -369,12 +557,12 @@ bool cdrom_read_sector(
 
 
     /*
-        Select ATAPI drive
+        Select CD-ROM
     */
 
     outb(
         cd_base + ATA_HDDEVSEL,
-        cd_drive | 0x40
+        cd_drive
     );
 
 
@@ -386,6 +574,7 @@ bool cdrom_read_sector(
     {
         return false;
     }
+
 
 
 
@@ -402,16 +591,20 @@ bool cdrom_read_sector(
 
     outb(
         cd_base + ATA_LBA1,
-        0x00
+        0
     );
 
 
     outb(
         cd_base + ATA_LBA2,
-        0x08
+        8
     );
 
 
+
+    /*
+        Start ATAPI PACKET command
+    */
 
     outb(
         cd_base + ATA_COMMAND,
@@ -432,6 +625,8 @@ bool cdrom_read_sector(
 
 
 
+
+
     /*
         SCSI READ(10)
     */
@@ -442,30 +637,21 @@ bool cdrom_read_sector(
     };
 
 
-    packet[0] =
-        ATAPI_READ10;
+    packet[0] = ATAPI_READ10;
 
 
+    packet[2] = (sector >> 24) & 0xFF;
 
-    packet[2] =
-        (sector >> 24) & 0xFF;
+    packet[3] = (sector >> 16) & 0xFF;
 
+    packet[4] = (sector >> 8) & 0xFF;
 
-    packet[3] =
-        (sector >> 16) & 0xFF;
-
-
-    packet[4] =
-        (sector >> 8) & 0xFF;
-
-
-    packet[5] =
-        sector & 0xFF;
+    packet[5] = sector & 0xFF;
 
 
 
     /*
-        Read 1 sector
+        Read one sector
     */
 
     packet[8] = 1;
@@ -480,21 +666,27 @@ bool cdrom_read_sector(
 
 
 
-    print("PACKET SENT\n");
+    print("READ PACKET SENT\n");
 
 
 
     if(!wait_drq(cd_base))
     {
-        print("DATA DRQ FAILED\n");
+        print("READ DRQ FAILED\n");
+
+        cdrom_request_sense();
+
         return false;
     }
 
 
 
     print("READ DATA READY\n");
+    /*
+        Read transfer size from ATA registers
 
-
+        LBA1/LBA2 contain the byte count
+    */
 
     uint16_t size =
         inb(cd_base + ATA_LBA1)
@@ -506,18 +698,39 @@ bool cdrom_read_sector(
     if(size == 0)
     {
         print("ZERO DATA SIZE\n");
+
+        cdrom_request_sense();
+
         return false;
     }
 
 
+
+    /*
+        ATAPI CD sectors are normally 2048 bytes
+
+        Prevent buffer overflow
+    */
 
     if(size > 2048)
     {
         print("DATA TOO LARGE\n");
+
+        cdrom_request_sense();
+
         return false;
     }
 
 
+
+
+
+    /*
+        Transfer words
+
+        insw count is WORDS,
+        not bytes
+    */
 
     insw(
         cd_base + ATA_DATA,
@@ -527,8 +740,57 @@ bool cdrom_read_sector(
 
 
 
-    print("SECTOR READ OK\n");
 
+
+    /*
+        Wait for command completion
+    */
+
+    if(!wait_not_busy(cd_base))
+    {
+        return false;
+    }
+
+
+
+
+
+    uint8_t status =
+        inb(cd_base + ATA_STATUS);
+
+
+
+    if(status & STATUS_ERR)
+    {
+        print("READ ERROR\n");
+
+        cdrom_request_sense();
+
+        return false;
+    }
+
+
+
+
+
+    /*
+        Clear unused part of the buffer
+
+        Keeps caller data predictable
+    */
+
+    for(uint16_t i = size;
+        i < 2048;
+        i++)
+    {
+        buffer[i] = 0;
+    }
+
+
+
+
+
+    print("SECTOR READ OK\n");
 
 
     return true;
