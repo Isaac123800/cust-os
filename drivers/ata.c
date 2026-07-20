@@ -1,9 +1,12 @@
 #include "ata.h"
 
+
 extern void print(char *text);
 
 
+
 static uint32_t total_sectors = 0;
+
 static bool ata_ready = false;
 
 
@@ -23,6 +26,8 @@ static void print_hex(uint8_t value)
 
 
 
+
+
 static void ata_delay(void)
 {
     inb(ATA_PRIMARY_ALTSTATUS);
@@ -33,75 +38,78 @@ static void ata_delay(void)
 
 
 
+
+
 /*
-    Wait until drive is ready
+    Wait until drive stops being busy
 */
 
-bool ata_wait(void)
+static bool ata_wait_not_busy(void)
 {
     int timeout = 1000000;
 
-    uint8_t status;
-
 
     while(timeout--)
     {
-        status = inb(ATA_PRIMARY_STATUS);
+        uint8_t status =
+            inb(ATA_PRIMARY_STATUS);
+
 
         if(!(status & ATA_SR_BSY))
-            break;
+        {
+            return true;
+        }
     }
 
 
-    if(timeout <= 0)
-    {
-        print("ATA BUSY TIMEOUT\n");
-        return false;
-    }
+    print("ATA BUSY TIMEOUT\n");
+
+    return false;
+}
 
 
 
-    if(status & ATA_SR_ERR)
-    {
-        print("ATA ERROR\n");
-        return false;
-    }
 
 
+/*
+    Wait until data transfer is ready
+*/
 
-    if(status & ATA_SR_DF)
-    {
-        print("ATA DEVICE FAULT\n");
-        return false;
-    }
-
-
-
-    timeout = 1000000;
+static bool ata_wait_drq(void)
+{
+    int timeout = 1000000;
 
 
     while(timeout--)
     {
-        status = inb(ATA_PRIMARY_STATUS);
+        uint8_t status =
+            inb(ATA_PRIMARY_STATUS);
+
 
 
         if(status & ATA_SR_ERR)
         {
-            print("ATA ERROR WAITING DRQ\n");
+            print("ATA ERROR\n");
             return false;
         }
+
 
 
         if(status & ATA_SR_DF)
         {
-            print("ATA FAULT WAITING DRQ\n");
+            print("ATA DEVICE FAULT\n");
             return false;
         }
 
 
-        if(status & ATA_SR_DRQ)
+
+        if((status & ATA_SR_DRQ) &&
+           !(status & ATA_SR_BSY))
+        {
             return true;
+        }
     }
+
 
 
     print("ATA DRQ TIMEOUT\n");
@@ -113,18 +121,26 @@ bool ata_wait(void)
 
 
 
+
+
 bool ata_detect(void)
 {
     print("ATA DETECT\n");
 
 
+    /*
+        Select primary master
+        LBA mode
+    */
+
     outb(
         ATA_PRIMARY_HDDEVSEL,
-        0xE0
+        ATA_MASTER
     );
 
 
     ata_delay();
+
 
 
     outb(
@@ -133,11 +149,14 @@ bool ata_detect(void)
     );
 
 
+
     ata_delay();
+
 
 
     uint8_t status =
         inb(ATA_PRIMARY_STATUS);
+
 
 
     print("ATA STATUS ");
@@ -147,6 +166,7 @@ bool ata_detect(void)
     print("\n");
 
 
+
     if(status == 0)
     {
         print("NO ATA DEVICE\n");
@@ -154,15 +174,24 @@ bool ata_detect(void)
     }
 
 
-    if(!ata_wait())
+
+    if(!ata_wait_not_busy())
     {
-        print("IDENTIFY FAILED\n");
         return false;
     }
 
 
 
     uint16_t buffer[256];
+
+
+
+    if(!(inb(ATA_PRIMARY_STATUS) & ATA_SR_DRQ))
+    {
+        print("NO IDENTIFY DATA\n");
+        return false;
+    }
+
 
 
     insw(
@@ -179,11 +208,13 @@ bool ata_detect(void)
         buffer[60];
 
 
-    print("ATA DEVICE OK\n");
 
+    print("ATA DEVICE OK\n");
 
     return true;
 }
+
+
 
 
 
@@ -195,6 +226,7 @@ void ata_init(void)
 
 
     ata_ready = ata_detect();
+
 
 
     if(!ata_ready)
@@ -209,12 +241,12 @@ void ata_init(void)
 
 
 
+
 bool ata_read_sector(
     uint32_t lba,
     uint8_t *buffer
 )
 {
-
     if(!ata_ready)
     {
         print("ATA NOT READY\n");
@@ -225,11 +257,18 @@ bool ata_read_sector(
 
     outb(
         ATA_PRIMARY_HDDEVSEL,
-        0xE0 | ((lba >> 24) & 0x0F)
+        ATA_MASTER | ((lba >> 24) & 0x0F)
     );
 
 
     ata_delay();
+
+
+
+    if(!ata_wait_not_busy())
+    {
+        return false;
+    }
 
 
 
@@ -264,12 +303,11 @@ bool ata_read_sector(
     );
 
 
-    ata_delay();
 
-
-
-    if(!ata_wait())
+    if(!ata_wait_drq())
+    {
         return false;
+    }
 
 
 
@@ -280,8 +318,10 @@ bool ata_read_sector(
     );
 
 
+
     return true;
 }
+
 
 
 
@@ -294,7 +334,6 @@ bool ata_write_sector(
     const uint8_t *buffer
 )
 {
-
     if(!ata_ready)
     {
         print("ATA NOT READY\n");
@@ -305,11 +344,18 @@ bool ata_write_sector(
 
     outb(
         ATA_PRIMARY_HDDEVSEL,
-        0xE0 | ((lba >> 24) & 0x0F)
+        ATA_MASTER | ((lba >> 24) & 0x0F)
     );
 
 
     ata_delay();
+
+
+
+    if(!ata_wait_not_busy())
+    {
+        return false;
+    }
 
 
 
@@ -344,12 +390,11 @@ bool ata_write_sector(
     );
 
 
-    ata_delay();
 
-
-
-    if(!ata_wait())
+    if(!ata_wait_drq())
+    {
         return false;
+    }
 
 
 
@@ -360,7 +405,16 @@ bool ata_write_sector(
     );
 
 
+
+    if(!ata_wait_not_busy())
+    {
+        return false;
+    }
+
+
+
     ata_flush();
+
 
 
     return true;
@@ -372,11 +426,14 @@ bool ata_write_sector(
 
 
 
+
 void ata_flush(void)
 {
-
     if(!ata_ready)
+    {
         return;
+    }
+
 
 
     outb(
@@ -385,9 +442,8 @@ void ata_flush(void)
     );
 
 
-    ata_delay();
 
-    ata_wait();
+    ata_wait_not_busy();
 }
 
 
