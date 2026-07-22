@@ -25,11 +25,16 @@ extern void print(char *text);
 #define ATA_STATUS      7
 #define ATA_COMMAND     7
 
+#define ATA_FEATURES        1
+#define ATA_BYTE_COUNT_LOW  4
+#define ATA_BYTE_COUNT_HIGH 5
+
 
 // Commands
 
 #define ATA_IDENTIFY            0xEC
 #define ATA_IDENTIFY_PACKET     0xA1
+#define ATA_PACKET              0xA0
 
 
 
@@ -39,6 +44,50 @@ static void ide_delay()
     inb(0x80);
     inb(0x80);
     inb(0x80);
+}
+
+
+
+static bool wait_not_busy(uint16_t io)
+{
+    int timeout = 100000;
+
+    while(timeout--)
+    {
+        uint8_t status = inb(io + ATA_STATUS);
+
+        if(!(status & 0x80))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+
+
+static bool wait_drq(uint16_t io)
+{
+    int timeout = 100000;
+
+    while(timeout--)
+    {
+        uint8_t status = inb(io + ATA_STATUS);
+
+        if(status & 0x01)
+        {
+            return false;
+        }
+
+
+        if(status & 0x08)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 
