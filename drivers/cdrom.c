@@ -32,9 +32,10 @@ extern void print(char *text);
 
 // Commands
 
-#define ATA_IDENTIFY            0xEC
-#define ATA_IDENTIFY_PACKET     0xA1
-#define ATA_PACKET              0xA0
+#define ATA_IDENTIFY        0xEC
+#define ATA_PACKET          0xA0
+
+#define ATAPI_READ12        0xA8
 
 
 
@@ -80,7 +81,6 @@ static bool wait_drq(uint16_t io)
             return false;
         }
 
-
         if(status & 0x08)
         {
             return true;
@@ -102,22 +102,16 @@ static uint8_t ide_identify(
     uint8_t lba_high;
 
 
-    // Select drive
-
     outb(io + ATA_DEVICE, 0xA0 | (drive << 4));
 
     ide_delay();
 
-
-    // Clear registers
 
     outb(io + ATA_SECTOR, 0);
     outb(io + ATA_LBA_LOW, 0);
     outb(io + ATA_LBA_MID, 0);
     outb(io + ATA_LBA_HIGH, 0);
 
-
-    // Try ATA identify
 
     outb(io + ATA_COMMAND, ATA_IDENTIFY);
 
@@ -131,30 +125,19 @@ static uint8_t ide_identify(
     }
 
 
-    // Wait for busy to clear
-
     while(status & 0x80)
     {
         status = inb(io + ATA_STATUS);
     }
 
 
-    // Read LBA values to detect ATAPI
-
     lba_mid = inb(io + ATA_LBA_MID);
     lba_high = inb(io + ATA_LBA_HIGH);
 
 
-    /*
-        ATAPI signature:
-
-        LBA mid  = 0x14
-        LBA high = 0xEB
-    */
-
     if(lba_mid == 0x14 && lba_high == 0xEB)
     {
-        return 2; // ATAPI device
+        return 2;
     }
 
 
@@ -164,7 +147,7 @@ static uint8_t ide_identify(
     }
 
 
-    return 1; // ATA device
+    return 1;
 }
 
 
@@ -176,7 +159,6 @@ static void check_device(
 )
 {
     uint8_t result;
-
 
     result = ide_identify(io, drive);
 
@@ -205,32 +187,10 @@ void cdrom_init(void)
     print("IDE DEVICE IDENTIFY\n");
 
 
-    check_device(
-        PRIMARY_IO,
-        0,
-        "Primary Master"
-    );
-
-
-    check_device(
-        PRIMARY_IO,
-        1,
-        "Primary Slave"
-    );
-
-
-    check_device(
-        SECONDARY_IO,
-        0,
-        "Secondary Master"
-    );
-
-
-    check_device(
-        SECONDARY_IO,
-        1,
-        "Secondary Slave"
-    );
+    check_device(PRIMARY_IO, 0, "Primary Master");
+    check_device(PRIMARY_IO, 1, "Primary Slave");
+    check_device(SECONDARY_IO, 0, "Secondary Master");
+    check_device(SECONDARY_IO, 1, "Secondary Slave");
 
 
     print("IDENTIFY COMPLETE\n");
@@ -243,8 +203,87 @@ bool cdrom_read_sector(
     uint8_t *buffer
 )
 {
-    (void)sector;
-    (void)buffer;
+    uint16_t io = SECONDARY_IO;
 
-    return false;
+
+    uint8_t packet[12];
+
+
+    // Select CD-ROM
+
+    outb(io + ATA_DEVICE, 0xA0);
+
+    ide_delay();
+
+
+    if(!wait_not_busy(io))
+    {
+        return false;
+    }
+
+
+    // Tell drive transfer size (2048 bytes)
+
+    outb(io + ATA_FEATURES, 0);
+
+    outb(io + ATA_BYTE_COUNT_LOW, 0x00);
+    outb(io + ATA_BYTE_COUNT_HIGH, 0x08);
+
+
+    // Send PACKET command
+
+    outb(io + ATA_COMMAND, ATA_PACKET);
+
+
+    if(!wait_drq(io))
+    {
+        return false;
+    }
+
+
+    // SCSI READ(12)
+
+    for(int i = 0; i < 12; i++)
+    {
+        packet[i] = 0;
+    }
+
+
+    packet[0] = ATAPI_READ12;
+
+
+    packet[2] = (sector >> 24) & 0xFF;
+    packet[3] = (sector >> 16) & 0xFF;
+    packet[4] = (sector >> 8) & 0xFF;
+    packet[5] = sector & 0xFF;
+
+
+    packet[9] = 1; // read 1 sector
+
+
+    // Send packet
+
+    outsw(
+        io + ATA_DATA,
+        packet,
+        6
+    );
+
+
+    if(!wait_drq(io))
+    {
+        return false;
+    }
+
+
+    // Read 2048 bytes
+
+    insw(
+        io + ATA_DATA,
+        buffer,
+        CD_SECTOR_SIZE / 2
+    );
+
+
+    return true;
 }
