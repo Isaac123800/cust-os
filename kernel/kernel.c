@@ -689,7 +689,10 @@ void kernel_main()
 
     iso_init();
 
-
+    while(1)
+        {
+            
+        }
     print("\nStarting installer...\n");
 
     installer_start();
