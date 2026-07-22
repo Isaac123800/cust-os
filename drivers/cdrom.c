@@ -294,26 +294,37 @@ bool cdrom_read_sector(
 
 
 
-    if(!wait_drq(io))
-    {
-        uint8_t error = inb(io + ATA_ERROR);
+   if(!wait_drq(io))
+{
+    uint8_t status = inb(io + ATA_STATUS);
+    uint8_t error = inb(io + ATA_ERROR);
+    uint8_t reason = inb(io + ATA_SECTOR);
+    uint8_t low = inb(io + ATA_BYTE_COUNT_LOW);
+    uint8_t high = inb(io + ATA_BYTE_COUNT_HIGH);
 
 
-        print("ATAPI READ ERROR: ");
+    print("ATAPI READ FAILED\n");
+
+    print("STATUS: ");
+    print_hex(status);
+
+    print("\nERROR: ");
+    print_hex(error);
+
+    print("\nREASON: ");
+    print_hex(reason);
+
+    print("\nCOUNT LOW: ");
+    print_hex(low);
+
+    print("\nCOUNT HIGH: ");
+    print_hex(high);
+
+    print("\n");
 
 
-        if(error & 0x04)
-            print("ABORT\n");
-
-        else if(error & 0x01)
-            print("ERROR\n");
-
-        else
-            print("UNKNOWN\n");
-
-
-        return false;
-    }
+    return false;
+}
 
 
 
