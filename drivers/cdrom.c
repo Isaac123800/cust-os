@@ -318,3 +318,22 @@ if(timeout == 0)
     print("ATAPI: STATUS TIMEOUT\n");
     return false;
 }
+
+
+
+
+print("ATAPI: READING DATA\n");
+
+
+insw(
+    io + ATA_DATA,
+    buffer,
+    CD_SECTOR_SIZE / 2
+);
+
+
+print("ATAPI: READ OK\n");
+
+
+return true;
+}
