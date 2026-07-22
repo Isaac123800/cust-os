@@ -102,6 +102,21 @@ void print(char *text)
 
 
 
+void print_hex(uint8_t value)
+{
+    char hex[] = "0123456789ABCDEF";
+
+    char out[3];
+
+    out[0] = hex[(value >> 4) & 0xF];
+    out[1] = hex[value & 0xF];
+    out[2] = 0;
+
+    print(out);
+}
+
+
+
 
 
 void clear()
