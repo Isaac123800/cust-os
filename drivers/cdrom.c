@@ -17,24 +17,25 @@ extern void print(char *text);
 
 #define ATA_DATA        0
 #define ATA_ERROR       1
-#define ATA_FEATURES    1
 #define ATA_SECTOR      2
 #define ATA_LBA_LOW     3
 #define ATA_LBA_MID     4
 #define ATA_LBA_HIGH    5
-#define ATA_BYTE_COUNT_LOW   4
-#define ATA_BYTE_COUNT_HIGH  5
 #define ATA_DEVICE      6
 #define ATA_STATUS      7
 #define ATA_COMMAND     7
 
+#define ATA_FEATURES        1
+#define ATA_BYTE_COUNT_LOW  4
+#define ATA_BYTE_COUNT_HIGH 5
+
 
 // Commands
 
-#define ATA_IDENTIFY    0xEC
-#define ATA_PACKET      0xA0
+#define ATA_IDENTIFY        0xEC
+#define ATA_PACKET          0xA0
 
-#define ATAPI_READ10    0x28
+#define ATAPI_READ12        0xA8
 
 
 
@@ -52,16 +53,13 @@ static bool wait_not_busy(uint16_t io)
 {
     int timeout = 100000;
 
-
     while(timeout--)
     {
         uint8_t status = inb(io + ATA_STATUS);
 
-
         if(!(status & 0x80))
             return true;
     }
-
 
     return false;
 }
@@ -71,7 +69,6 @@ static bool wait_not_busy(uint16_t io)
 static bool wait_drq(uint16_t io)
 {
     int timeout = 100000;
-
 
     while(timeout--)
     {
@@ -86,10 +83,8 @@ static bool wait_drq(uint16_t io)
             return true;
     }
 
-
     return false;
 }
-
 
 
 
@@ -99,8 +94,6 @@ static uint8_t ide_identify(
 )
 {
     uint8_t status;
-    uint8_t mid;
-    uint8_t high;
 
 
     outb(io + ATA_DEVICE, 0xA0 | (drive << 4));
@@ -129,13 +122,14 @@ static uint8_t ide_identify(
 
 
 
-    mid = inb(io + ATA_LBA_MID);
-    high = inb(io + ATA_LBA_HIGH);
+    uint8_t mid = inb(io + ATA_LBA_MID);
+    uint8_t high = inb(io + ATA_LBA_HIGH);
 
 
 
     if(mid == 0x14 && high == 0xEB)
         return 2;
+
 
 
     if(status & 1)
@@ -147,15 +141,13 @@ static uint8_t ide_identify(
 
 
 
-
-
 static void check_device(
     uint16_t io,
     uint8_t drive,
     char *name
 )
 {
-    uint8_t result = ide_identify(io,drive);
+    uint8_t result = ide_identify(io, drive);
 
 
     print(name);
@@ -173,9 +165,7 @@ static void check_device(
 
 
 
-
-
-void cdrom_init()
+void cdrom_init(void)
 {
     print("IDE DEVICE IDENTIFY\n");
 
@@ -204,9 +194,7 @@ bool cdrom_read_sector(
     uint8_t packet[12];
 
 
-
     print("ATAPI: START\n");
-
 
 
     outb(io + ATA_DEVICE,0xA0);
@@ -222,8 +210,11 @@ bool cdrom_read_sector(
     }
 
 
+    print("ATAPI: READY\n");
 
-    // Request 2048 byte transfer
+
+
+    // Maximum transfer size = 2048 bytes
 
     outb(io + ATA_FEATURES,0);
 
@@ -247,16 +238,7 @@ bool cdrom_read_sector(
 
 
 
-    // Interrupt reason check
-
-    uint8_t reason = inb(io + ATA_SECTOR);
-
-
-    if(!(reason & 1))
-    {
-        print("ATAPI: NOT COMMAND PHASE\n");
-        return false;
-    }
+    print("ATAPI: DRQ OK\n");
 
 
 
@@ -265,21 +247,24 @@ bool cdrom_read_sector(
 
 
 
-    // READ(10)
+    // READ(12)
 
-    packet[0] = ATAPI_READ10;
-
-
-    packet[2] = (sector >> 24) & 0xFF;
-    packet[3] = (sector >> 16) & 0xFF;
-    packet[4] = (sector >> 8) & 0xFF;
-    packet[5] = sector & 0xFF;
+    packet[0]=ATAPI_READ12;
 
 
-    // one sector
 
-    packet[7] = 0;
-    packet[8] = 1;
+    // LBA
+
+    packet[2]=(sector >> 24)&0xFF;
+    packet[3]=(sector >> 16)&0xFF;
+    packet[4]=(sector >> 8)&0xFF;
+    packet[5]=sector&0xFF;
+
+
+
+    // Read 1 sector
+
+    packet[9]=1;
 
 
 
@@ -290,52 +275,46 @@ bool cdrom_read_sector(
     );
 
 
-    print("ATAPI: COMMAND SENT\n");
+    ide_delay();
 
 
 
-   if(!wait_drq(io))
-{
-    uint8_t status = inb(io + ATA_STATUS);
-    uint8_t error = inb(io + ATA_ERROR);
-    uint8_t reason = inb(io + ATA_SECTOR);
-    uint8_t low = inb(io + ATA_BYTE_COUNT_LOW);
-    uint8_t high = inb(io + ATA_BYTE_COUNT_HIGH);
-
-
-    print("ATAPI READ FAILED\n");
-
-    print("STATUS: ");
-    print_hex(status);
-
-    print("\nERROR: ");
-    print_hex(error);
-
-    print("\nREASON: ");
-    print_hex(reason);
-
-    print("\nCOUNT LOW: ");
-    print_hex(low);
-
-    print("\nCOUNT HIGH: ");
-    print_hex(high);
-
-    print("\n");
-
-
-    return false;
-}
+    print("ATAPI: READ COMMAND SENT\n");
 
 
 
-    print("ATAPI: READING\n");
+    if(!wait_drq(io))
+    {
+        uint8_t status=inb(io+ATA_STATUS);
+        uint8_t error=inb(io+ATA_ERROR);
+        uint8_t reason=inb(io+2);
+
+        print("ATAPI: READ ERROR\n");
+
+        print("STATUS: ");
+        print_hex(status);
+
+        print(" ERROR: ");
+        print_hex(error);
+
+        print(" REASON: ");
+        print_hex(reason);
+
+        print("\n");
+
+        return false;
+    }
+
+
+
+    print("ATAPI: READING DATA\n");
 
 
 
     insw(
         io + ATA_DATA,
         buffer,
-        CD_SECTOR_SIZE / 2
+        2048/2
     );
 
 
