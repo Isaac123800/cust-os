@@ -9,6 +9,7 @@
 #include "drivers/cdrom.h"
 #include "fs/filesystem.h"
 #include "installer/installer.h"
+#include "fs/iso9660.h"
 
 
 
@@ -684,13 +685,14 @@ void kernel_main()
 
     cdrom_init();
 
+    print("\nTesting ISO...\n");
+
+    iso_init();
+
 
     print("\nStarting installer...\n");
 
-
     installer_start();
-
-
 
     print("\nInstaller finished.\n");
 
