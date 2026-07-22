@@ -15,6 +15,12 @@ extern void print(char *text);
 
 // ATA registers
 
+#define ATA_DATA        0
+#define ATA_ERROR       1
+#define ATA_SECTOR      2
+#define ATA_LBA_LOW     3
+#define ATA_LBA_MID     4
+#define ATA_LBA_HIGH    5
 #define ATA_DEVICE      6
 #define ATA_STATUS      7
 #define ATA_COMMAND     7
@@ -22,7 +28,9 @@ extern void print(char *text);
 
 // Commands
 
-#define ATA_IDENTIFY    0xEC
+#define ATA_IDENTIFY            0xEC
+#define ATA_IDENTIFY_PACKET     0xA1
+
 
 
 static void ide_delay()
@@ -35,99 +43,148 @@ static void ide_delay()
 
 
 
-static bool ide_detect(
+static uint8_t ide_identify(
     uint16_t io,
     uint8_t drive
 )
 {
     uint8_t status;
+    uint8_t lba_mid;
+    uint8_t lba_high;
 
 
     // Select drive
+
     outb(io + ATA_DEVICE, 0xA0 | (drive << 4));
 
     ide_delay();
 
 
-    // Send IDENTIFY command
+    // Clear registers
+
+    outb(io + ATA_SECTOR, 0);
+    outb(io + ATA_LBA_LOW, 0);
+    outb(io + ATA_LBA_MID, 0);
+    outb(io + ATA_LBA_HIGH, 0);
+
+
+    // Try ATA identify
+
     outb(io + ATA_COMMAND, ATA_IDENTIFY);
 
 
     status = inb(io + ATA_STATUS);
 
 
-    // No device
     if(status == 0)
     {
-        return false;
+        return 0;
     }
 
 
-    // Wait for busy flag to clear
+    // Wait for busy to clear
+
     while(status & 0x80)
     {
         status = inb(io + ATA_STATUS);
     }
 
 
-    // Error flag
-    if(status & 0x01)
+    // Read LBA values to detect ATAPI
+
+    lba_mid = inb(io + ATA_LBA_MID);
+    lba_high = inb(io + ATA_LBA_HIGH);
+
+
+    /*
+        ATAPI signature:
+
+        LBA mid  = 0x14
+        LBA high = 0xEB
+    */
+
+    if(lba_mid == 0x14 && lba_high == 0xEB)
     {
-        return false;
+        return 2; // ATAPI device
     }
 
 
-    return true;
+    if(status & 0x01)
+    {
+        return 0;
+    }
+
+
+    return 1; // ATA device
+}
+
+
+
+static void check_device(
+    uint16_t io,
+    uint8_t drive,
+    char *name
+)
+{
+    uint8_t result;
+
+
+    result = ide_identify(io, drive);
+
+
+    print(name);
+
+
+    if(result == 0)
+    {
+        print(": Empty\n");
+    }
+    else if(result == 1)
+    {
+        print(": ATA Hard Disk\n");
+    }
+    else if(result == 2)
+    {
+        print(": ATAPI CD-ROM\n");
+    }
 }
 
 
 
 void cdrom_init(void)
 {
-    print("IDE DEVICE SCAN\n");
+    print("IDE DEVICE IDENTIFY\n");
 
 
-    if(ide_detect(PRIMARY_IO,0))
-    {
-        print("Primary Master detected\n");
-    }
-    else
-    {
-        print("Primary Master empty\n");
-    }
+    check_device(
+        PRIMARY_IO,
+        0,
+        "Primary Master"
+    );
 
 
-    if(ide_detect(PRIMARY_IO,1))
-    {
-        print("Primary Slave detected\n");
-    }
-    else
-    {
-        print("Primary Slave empty\n");
-    }
+    check_device(
+        PRIMARY_IO,
+        1,
+        "Primary Slave"
+    );
 
 
-    if(ide_detect(SECONDARY_IO,0))
-    {
-        print("Secondary Master detected\n");
-    }
-    else
-    {
-        print("Secondary Master empty\n");
-    }
+    check_device(
+        SECONDARY_IO,
+        0,
+        "Secondary Master"
+    );
 
 
-    if(ide_detect(SECONDARY_IO,1))
-    {
-        print("Secondary Slave detected\n");
-    }
-    else
-    {
-        print("Secondary Slave empty\n");
-    }
+    check_device(
+        SECONDARY_IO,
+        1,
+        "Secondary Slave"
+    );
 
 
-    print("IDE SCAN COMPLETE\n");
+    print("IDENTIFY COMPLETE\n");
 }
 
 
@@ -137,12 +194,8 @@ bool cdrom_read_sector(
     uint8_t *buffer
 )
 {
-    // Not implemented yet.
-    // This will be added after ATAPI detection works.
-
     (void)sector;
     (void)buffer;
-
 
     return false;
 }
