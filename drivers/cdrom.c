@@ -289,25 +289,32 @@ bool cdrom_read_sector(
     print("ATAPI: READ COMMAND SENT\n");
 
 
-    if(!wait_drq(io))
+uint8_t status;
+int timeout = 100000;
+
+
+while(timeout--)
+{
+    status = inb(io + ATA_STATUS);
+
+
+    if(status & 0x01)
     {
-        print("ATAPI: READ NO DATA\n");
+        print("ATAPI: READ ERROR\n");
         return false;
     }
 
 
-    print("ATAPI: READING DATA\n");
+    if(status & 0x08)
+    {
+        print("ATAPI: DATA READY\n");
+        break;
+    }
+}
 
 
-    insw(
-        io + ATA_DATA,
-        buffer,
-        CD_SECTOR_SIZE / 2
-    );
-
-
-    print("ATAPI: READ OK\n");
-
-
-    return true;
+if(timeout == 0)
+{
+    print("ATAPI: STATUS TIMEOUT\n");
+    return false;
 }
