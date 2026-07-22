@@ -205,24 +205,33 @@ bool cdrom_read_sector(
 {
     uint16_t io = SECONDARY_IO;
 
-
     uint8_t packet[12];
 
 
-    // Select CD-ROM
+    print("ATAPI: START\n");
+
+
+    // Select Secondary Master CD-ROM
 
     outb(io + ATA_DEVICE, 0xA0);
 
     ide_delay();
 
 
+    print("ATAPI: SELECTED\n");
+
+
     if(!wait_not_busy(io))
     {
+        print("ATAPI: BUSY TIMEOUT\n");
         return false;
     }
 
 
-    // Tell drive transfer size (2048 bytes)
+    print("ATAPI: READY\n");
+
+
+    // Set transfer size: 2048 bytes
 
     outb(io + ATA_FEATURES, 0);
 
@@ -235,13 +244,20 @@ bool cdrom_read_sector(
     outb(io + ATA_COMMAND, ATA_PACKET);
 
 
+    print("ATAPI: PACKET SENT\n");
+
+
     if(!wait_drq(io))
     {
+        print("ATAPI: NO DRQ\n");
         return false;
     }
 
 
-    // SCSI READ(12)
+    print("ATAPI: DRQ OK\n");
+
+
+    // Build READ(12) packet
 
     for(int i = 0; i < 12; i++)
     {
@@ -258,7 +274,7 @@ bool cdrom_read_sector(
     packet[5] = sector & 0xFF;
 
 
-    packet[9] = 1; // read 1 sector
+    packet[9] = 1;
 
 
     // Send packet
@@ -270,19 +286,27 @@ bool cdrom_read_sector(
     );
 
 
+    print("ATAPI: READ COMMAND SENT\n");
+
+
     if(!wait_drq(io))
     {
+        print("ATAPI: READ NO DATA\n");
         return false;
     }
 
 
-    // Read 2048 bytes
+    print("ATAPI: READING DATA\n");
+
 
     insw(
         io + ATA_DATA,
         buffer,
         CD_SECTOR_SIZE / 2
     );
+
+
+    print("ATAPI: READ OK\n");
 
 
     return true;
