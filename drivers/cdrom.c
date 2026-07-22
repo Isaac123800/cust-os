@@ -30,7 +30,6 @@ extern void print(char *text);
 
 #define ATA_IDENTIFY            0xEC
 #define ATA_IDENTIFY_PACKET     0xA1
-#define ATA_PACKET              0xA0
 
 
 
@@ -152,43 +151,6 @@ static void check_device(
 
 
 
-static bool atapi_packet_test(void)
-{
-    uint8_t status;
-
-
-    // Secondary Master = CD-ROM
-
-    outb(SECONDARY_IO + ATA_DEVICE, 0xA0);
-
-    ide_delay();
-
-
-    // Send PACKET command
-
-    outb(SECONDARY_IO + ATA_COMMAND, ATA_PACKET);
-
-
-    status = inb(SECONDARY_IO + ATA_STATUS);
-
-
-    if(status == 0)
-    {
-        return false;
-    }
-
-
-    while(status & 0x80)
-    {
-        status = inb(SECONDARY_IO + ATA_STATUS);
-    }
-
-
-    return true;
-}
-
-
-
 void cdrom_init(void)
 {
     print("IDE DEVICE IDENTIFY\n");
@@ -223,16 +185,6 @@ void cdrom_init(void)
 
 
     print("IDENTIFY COMPLETE\n");
-
-
-    if(atapi_packet_test())
-    {
-        print("ATAPI PACKET OK\n");
-    }
-    else
-    {
-        print("ATAPI PACKET FAILED\n");
-    }
 }
 
 
