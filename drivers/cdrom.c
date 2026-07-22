@@ -3,10 +3,17 @@
 #include "../include/types.h"
 #include "io.h"
 
+
 extern void print(char *text);
+
+
+// IDE ports
 
 #define PRIMARY_IO      0x1F0
 #define SECONDARY_IO    0x170
+
+
+// ATA registers
 
 #define ATA_DATA        0
 #define ATA_ERROR       1
@@ -18,118 +25,205 @@ extern void print(char *text);
 #define ATA_STATUS      7
 #define ATA_COMMAND     7
 
-#define ATA_IDENTIFY        0xEC
-#define ATA_PACKET          0xA0
 
-static void ide_delay(void)
+// Commands
+
+#define ATA_IDENTIFY            0xEC
+#define ATA_IDENTIFY_PACKET     0xA1
+#define ATA_PACKET              0xA0
+
+
+
+static void ide_delay()
 {
-    io_wait();
-    io_wait();
-    io_wait();
-    io_wait();
+    inb(0x80);
+    inb(0x80);
+    inb(0x80);
+    inb(0x80);
 }
 
-static uint8_t ide_identify(uint16_t io, uint8_t drive)
+
+
+static uint8_t ide_identify(
+    uint16_t io,
+    uint8_t drive
+)
 {
     uint8_t status;
-    uint8_t mid;
-    uint8_t high;
+    uint8_t lba_mid;
+    uint8_t lba_high;
+
+
+    // Select drive
 
     outb(io + ATA_DEVICE, 0xA0 | (drive << 4));
 
     ide_delay();
+
+
+    // Clear registers
 
     outb(io + ATA_SECTOR, 0);
     outb(io + ATA_LBA_LOW, 0);
     outb(io + ATA_LBA_MID, 0);
     outb(io + ATA_LBA_HIGH, 0);
 
+
+    // Try ATA identify
+
     outb(io + ATA_COMMAND, ATA_IDENTIFY);
 
+
     status = inb(io + ATA_STATUS);
+
 
     if(status == 0)
     {
         return 0;
     }
+
+
+    // Wait for busy to clear
 
     while(status & 0x80)
     {
         status = inb(io + ATA_STATUS);
     }
 
-    mid = inb(io + ATA_LBA_MID);
-    high = inb(io + ATA_LBA_HIGH);
 
-    if(mid == 0x14 && high == 0xEB)
+    // Read LBA values to detect ATAPI
+
+    lba_mid = inb(io + ATA_LBA_MID);
+    lba_high = inb(io + ATA_LBA_HIGH);
+
+
+    /*
+        ATAPI signature:
+
+        LBA mid  = 0x14
+        LBA high = 0xEB
+    */
+
+    if(lba_mid == 0x14 && lba_high == 0xEB)
     {
-        return 2; /* ATAPI */
+        return 2; // ATAPI device
     }
+
 
     if(status & 0x01)
     {
         return 0;
     }
 
-    return 1; /* ATA */
+
+    return 1; // ATA device
 }
 
-static void print_device(uint16_t io, uint8_t drive, char *name)
+
+
+static void check_device(
+    uint16_t io,
+    uint8_t drive,
+    char *name
+)
 {
-    uint8_t type = ide_identify(io, drive);
+    uint8_t result;
+
+
+    result = ide_identify(io, drive);
+
 
     print(name);
 
-    if(type == 0)
+
+    if(result == 0)
     {
         print(": Empty\n");
     }
-    else if(type == 1)
+    else if(result == 1)
     {
         print(": ATA Hard Disk\n");
     }
-    else
+    else if(result == 2)
     {
         print(": ATAPI CD-ROM\n");
     }
 }
 
+
+
 static bool atapi_packet_test(void)
 {
     uint8_t status;
 
-    /* Secondary Master = CD-ROM */
+
+    // Secondary Master = CD-ROM
+
     outb(SECONDARY_IO + ATA_DEVICE, 0xA0);
 
     ide_delay();
 
+
+    // Send PACKET command
+
     outb(SECONDARY_IO + ATA_COMMAND, ATA_PACKET);
 
+
     status = inb(SECONDARY_IO + ATA_STATUS);
+
 
     if(status == 0)
     {
         return false;
     }
 
+
     while(status & 0x80)
     {
         status = inb(SECONDARY_IO + ATA_STATUS);
     }
 
+
     return true;
 }
+
+
 
 void cdrom_init(void)
 {
     print("IDE DEVICE IDENTIFY\n");
 
-    print_device(PRIMARY_IO, 0, "Primary Master");
-    print_device(PRIMARY_IO, 1, "Primary Slave");
-    print_device(SECONDARY_IO, 0, "Secondary Master");
-    print_device(SECONDARY_IO, 1, "Secondary Slave");
+
+    check_device(
+        PRIMARY_IO,
+        0,
+        "Primary Master"
+    );
+
+
+    check_device(
+        PRIMARY_IO,
+        1,
+        "Primary Slave"
+    );
+
+
+    check_device(
+        SECONDARY_IO,
+        0,
+        "Secondary Master"
+    );
+
+
+    check_device(
+        SECONDARY_IO,
+        1,
+        "Secondary Slave"
+    );
+
 
     print("IDENTIFY COMPLETE\n");
+
 
     if(atapi_packet_test())
     {
@@ -140,6 +234,8 @@ void cdrom_init(void)
         print("ATAPI PACKET FAILED\n");
     }
 }
+
+
 
 bool cdrom_read_sector(
     uint32_t sector,
