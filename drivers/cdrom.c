@@ -17,25 +17,24 @@ extern void print(char *text);
 
 #define ATA_DATA        0
 #define ATA_ERROR       1
+#define ATA_FEATURES    1
 #define ATA_SECTOR      2
 #define ATA_LBA_LOW     3
 #define ATA_LBA_MID     4
 #define ATA_LBA_HIGH    5
+#define ATA_BYTE_COUNT_LOW   4
+#define ATA_BYTE_COUNT_HIGH  5
 #define ATA_DEVICE      6
 #define ATA_STATUS      7
 #define ATA_COMMAND     7
 
-#define ATA_FEATURES        1
-#define ATA_BYTE_COUNT_LOW  4
-#define ATA_BYTE_COUNT_HIGH 5
-
 
 // Commands
 
-#define ATA_IDENTIFY        0xEC
-#define ATA_PACKET          0xA0
+#define ATA_IDENTIFY    0xEC
+#define ATA_PACKET      0xA0
 
-#define ATAPI_READ10        0x28
+#define ATAPI_READ10    0x28
 
 
 
@@ -53,15 +52,16 @@ static bool wait_not_busy(uint16_t io)
 {
     int timeout = 100000;
 
+
     while(timeout--)
     {
         uint8_t status = inb(io + ATA_STATUS);
 
+
         if(!(status & 0x80))
-        {
             return true;
-        }
     }
+
 
     return false;
 }
@@ -72,25 +72,24 @@ static bool wait_drq(uint16_t io)
 {
     int timeout = 100000;
 
+
     while(timeout--)
     {
         uint8_t status = inb(io + ATA_STATUS);
 
 
         if(status & 0x01)
-        {
             return false;
-        }
 
 
         if(status & 0x08)
-        {
             return true;
-        }
     }
+
 
     return false;
 }
+
 
 
 
@@ -100,8 +99,8 @@ static uint8_t ide_identify(
 )
 {
     uint8_t status;
-    uint8_t lba_mid;
-    uint8_t lba_high;
+    uint8_t mid;
+    uint8_t high;
 
 
     outb(io + ATA_DEVICE, 0xA0 | (drive << 4));
@@ -109,10 +108,10 @@ static uint8_t ide_identify(
     ide_delay();
 
 
-    outb(io + ATA_SECTOR, 0);
-    outb(io + ATA_LBA_LOW, 0);
-    outb(io + ATA_LBA_MID, 0);
-    outb(io + ATA_LBA_HIGH, 0);
+    outb(io + ATA_SECTOR,0);
+    outb(io + ATA_LBA_LOW,0);
+    outb(io + ATA_LBA_MID,0);
+    outb(io + ATA_LBA_HIGH,0);
 
 
     outb(io + ATA_COMMAND, ATA_IDENTIFY);
@@ -125,34 +124,28 @@ static uint8_t ide_identify(
         return 0;
 
 
-
     while(status & 0x80)
-    {
         status = inb(io + ATA_STATUS);
-    }
 
 
 
-    lba_mid = inb(io + ATA_LBA_MID);
-    lba_high = inb(io + ATA_LBA_HIGH);
+    mid = inb(io + ATA_LBA_MID);
+    high = inb(io + ATA_LBA_HIGH);
 
 
 
-    if(lba_mid == 0x14 && lba_high == 0xEB)
-    {
+    if(mid == 0x14 && high == 0xEB)
         return 2;
-    }
 
 
-
-    if(status & 0x01)
-    {
+    if(status & 1)
         return 0;
-    }
 
 
     return 1;
 }
+
+
 
 
 
@@ -162,7 +155,7 @@ static void check_device(
     char *name
 )
 {
-    uint8_t result = ide_identify(io, drive);
+    uint8_t result = ide_identify(io,drive);
 
 
     print(name);
@@ -180,13 +173,16 @@ static void check_device(
 
 
 
-void cdrom_init(void)
+
+
+void cdrom_init()
 {
     print("IDE DEVICE IDENTIFY\n");
 
 
     check_device(PRIMARY_IO,0,"Primary Master");
     check_device(PRIMARY_IO,1,"Primary Slave");
+
     check_device(SECONDARY_IO,0,"Secondary Master");
     check_device(SECONDARY_IO,1,"Secondary Slave");
 
@@ -208,7 +204,9 @@ bool cdrom_read_sector(
     uint8_t packet[12];
 
 
+
     print("ATAPI: START\n");
+
 
 
     outb(io + ATA_DEVICE,0xA0);
@@ -225,11 +223,7 @@ bool cdrom_read_sector(
 
 
 
-    print("ATAPI: READY\n");
-
-
-
-    // 2048 byte transfer
+    // Request 2048 byte transfer
 
     outb(io + ATA_FEATURES,0);
 
@@ -253,7 +247,16 @@ bool cdrom_read_sector(
 
 
 
-    print("ATAPI: DRQ OK\n");
+    // Interrupt reason check
+
+    uint8_t reason = inb(io + ATA_SECTOR);
+
+
+    if(!(reason & 1))
+    {
+        print("ATAPI: NOT COMMAND PHASE\n");
+        return false;
+    }
 
 
 
@@ -267,17 +270,13 @@ bool cdrom_read_sector(
     packet[0] = ATAPI_READ10;
 
 
-
-    // LBA
-
     packet[2] = (sector >> 24) & 0xFF;
     packet[3] = (sector >> 16) & 0xFF;
     packet[4] = (sector >> 8) & 0xFF;
     packet[5] = sector & 0xFF;
 
 
-
-    // Transfer 1 sector
+    // one sector
 
     packet[7] = 0;
     packet[8] = 1;
@@ -291,19 +290,34 @@ bool cdrom_read_sector(
     );
 
 
-    print("ATAPI: READ COMMAND SENT\n");
+    print("ATAPI: COMMAND SENT\n");
 
 
 
     if(!wait_drq(io))
     {
-        print("ATAPI: READ ERROR\n");
+        uint8_t error = inb(io + ATA_ERROR);
+
+
+        print("ATAPI READ ERROR: ");
+
+
+        if(error & 0x04)
+            print("ABORT\n");
+
+        else if(error & 0x01)
+            print("ERROR\n");
+
+        else
+            print("UNKNOWN\n");
+
+
         return false;
     }
 
 
 
-    print("ATAPI: READING DATA\n");
+    print("ATAPI: READING\n");
 
 
 
