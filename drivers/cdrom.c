@@ -1,7 +1,7 @@
 #include "cdrom.h"
 
 #include "../include/types.h"
-#include "../io.h"
+#include "io.h"
 
 
 extern void print(char *text);
