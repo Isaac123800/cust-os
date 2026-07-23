@@ -565,14 +565,16 @@ bool cdrom_read_sector(
 
 
 
-    uint8_t reason =
-        inb(io + ATA_INTERRUPT_REASON);
+   reason = inb(io + ATA_INTERRUPT_REASON);
+
+
+print("ATAPI: DATA PHASE REASON=");
+print_hex(reason);
+print("\n");
 
 
 
-    print("ATAPI: DATA PHASE REASON=");
-    print_hex(reason);
-    print("\n");
+
 
 
 
