@@ -53,7 +53,7 @@ extern void print_hex(uint8_t value);
 // ATAPI Commands
 // ------------------------------------------------------------
 
-#define ATAPI_READ10            0x28
+#define ATAPI_READ12            0xA8
 
 
 
@@ -502,7 +502,7 @@ bool cdrom_read_sector(
             Transfer length
     */
 
-    packet[0] = ATAPI_READ10;
+    packet[0] = ATAPI_READ12;
 
 
 
@@ -516,9 +516,11 @@ bool cdrom_read_sector(
 
 
     // Read exactly one sector
-
+    
+    packet[6] = 0;
     packet[7] = 0;
-    packet[8] = 1;
+    packet[8] = 0;
+    packet[9] = 1;
 
 
 
