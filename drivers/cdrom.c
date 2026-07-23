@@ -557,11 +557,32 @@ bool cdrom_read_sector(
 
 
     if(!wait_drq(io))
-    {
-        print("ATAPI: No DATA DRQ\n");
-        dump_status(io);
-        return false;
-    }
+{
+    print("ATAPI: No DATA DRQ\n");
+
+    uint8_t status = inb(io + ATA_STATUS);
+    uint8_t error = inb(io + ATA_ERROR);
+    uint8_t reason = inb(io + ATA_INTERRUPT_REASON);
+    uint8_t count_low = inb(io + ATA_BYTE_COUNT_LOW);
+    uint8_t count_high = inb(io + ATA_BYTE_COUNT_HIGH);
+
+    print("STATUS=");
+    print_hex(status);
+
+    print(" ERROR=");
+    print_hex(error);
+
+    print(" REASON=");
+    print_hex(reason);
+
+    print(" COUNT=");
+    print_hex(count_high);
+    print_hex(count_low);
+
+    print("\n");
+
+    return false;
+}
 
 
 
