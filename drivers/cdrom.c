@@ -3,6 +3,7 @@
 #include "../include/types.h"
 #include "io.h"
 
+
 extern void print(char *text);
 extern void print_hex(uint8_t value);
 
@@ -40,7 +41,7 @@ extern void print_hex(uint8_t value);
 
 
 // ============================================================
-// COMMANDS
+// ATA / ATAPI COMMANDS
 // ============================================================
 
 #define ATA_IDENTIFY            0xEC
@@ -60,7 +61,7 @@ extern void print_hex(uint8_t value);
 
 
 // ============================================================
-// ATAPI REASON BITS
+// ATAPI INTERRUPT REASON BITS
 // ============================================================
 
 #define ATAPI_COD  0x01
@@ -76,56 +77,68 @@ static uint8_t cdrom_drive = 0;
 
 
 // ============================================================
-// DELAY
+// IDE DELAY
 // ============================================================
 
 static void ide_delay(void)
 {
-    inb(0x80);
-    inb(0x80);
-    inb(0x80);
-    inb(0x80);
+    io_wait();
+    io_wait();
+    io_wait();
+    io_wait();
 }
 
 
 // ============================================================
-// WAIT UNTIL NOT BUSY
+// WAIT UNTIL DEVICE IS NOT BUSY
 // ============================================================
 
 static bool wait_not_busy(uint16_t io)
 {
     int timeout = 5000000;
 
+
     while (timeout--)
     {
-        uint8_t status = inb(io + ATA_STATUS);
+        uint8_t status =
+            inb(io + ATA_STATUS);
+
 
         if (!(status & ATA_BSY))
             return true;
     }
+
 
     return false;
 }
 
 
 // ============================================================
-// WAIT FOR DRQ
+// WAIT FOR DATA REQUEST
 // ============================================================
 
 static bool wait_drq(uint16_t io)
 {
     int timeout = 5000000;
 
+
     while (timeout--)
     {
-        uint8_t status = inb(io + ATA_STATUS);
+        uint8_t status =
+            inb(io + ATA_STATUS);
+
 
         if (status & ATA_ERR)
             return false;
 
-        if (!(status & ATA_BSY) && (status & ATA_DRQ))
+
+        if (!(status & ATA_BSY) &&
+            (status & ATA_DRQ))
+        {
             return true;
+        }
     }
+
 
     return false;
 }
@@ -140,20 +153,26 @@ static void dump_status(uint16_t io)
     uint8_t status =
         inb(io + ATA_STATUS);
 
+
     uint8_t error =
         inb(io + ATA_ERROR);
+
 
     uint8_t reason =
         inb(io + ATA_INTERRUPT_REASON);
 
+
     print("STATUS=");
     print_hex(status);
+
 
     print(" ERROR=");
     print_hex(error);
 
+
     print(" REASON=");
     print_hex(reason);
+
 
     print("\n");
 }
@@ -162,7 +181,7 @@ static void dump_status(uint16_t io)
 // ============================================================
 // IDENTIFY DEVICE
 //
-// Return values:
+// Return:
 //
 // 0 = no device
 // 1 = ATA device
@@ -187,6 +206,7 @@ static uint8_t ide_identify(
         device
     );
 
+
     ide_delay();
 
 
@@ -199,15 +219,18 @@ static uint8_t ide_identify(
         0
     );
 
+
     outb(
         io + ATA_LBA_LOW,
         0
     );
 
+
     outb(
         io + ATA_LBA_MID,
         0
     );
+
 
     outb(
         io + ATA_LBA_HIGH,
@@ -216,7 +239,7 @@ static uint8_t ide_identify(
 
 
     // --------------------------------------------------------
-    // Check status before command
+    // Check whether the channel exists
     // --------------------------------------------------------
 
     uint8_t status =
@@ -228,7 +251,7 @@ static uint8_t ide_identify(
 
 
     // --------------------------------------------------------
-    // Try ATA IDENTIFY
+    // Try normal ATA IDENTIFY
     // --------------------------------------------------------
 
     outb(
@@ -244,16 +267,12 @@ static uint8_t ide_identify(
         inb(io + ATA_STATUS);
 
 
-    // --------------------------------------------------------
-    // No device
-    // --------------------------------------------------------
-
     if (status == 0)
         return 0;
 
 
     // --------------------------------------------------------
-    // Wait until device isn't busy
+    // Wait for the device
     // --------------------------------------------------------
 
     if (!wait_not_busy(io))
@@ -263,7 +282,7 @@ static uint8_t ide_identify(
     // --------------------------------------------------------
     // Check ATAPI signature
     //
-    // ATAPI normally reports:
+    // ATAPI devices normally return:
     //
     // LBA MID  = 0x14
     // LBA HIGH = 0xEB
@@ -271,6 +290,7 @@ static uint8_t ide_identify(
 
     uint8_t mid =
         inb(io + ATA_LBA_MID);
+
 
     uint8_t high =
         inb(io + ATA_LBA_HIGH);
@@ -284,36 +304,30 @@ static uint8_t ide_identify(
 
 
     // --------------------------------------------------------
-    // If IDENTIFY succeeded, it is an ATA device
+    // Normal ATA device?
     // --------------------------------------------------------
 
     status =
         inb(io + ATA_STATUS);
 
 
-    if (status & ATA_ERR)
-    {
-        /*
-         * IDENTIFY failed.
-         *
-         * It may still be an ATAPI device, so explicitly
-         * try IDENTIFY PACKET DEVICE.
-         */
-    }
-    else
+    if (!(status & ATA_ERR))
     {
         return 1;
     }
 
 
     // --------------------------------------------------------
-    // ATAPI IDENTIFY PACKET DEVICE
+    // IDENTIFY failed.
+    //
+    // Try IDENTIFY PACKET DEVICE.
     // --------------------------------------------------------
 
     outb(
         io + ATA_DEVICE,
         device
     );
+
 
     ide_delay();
 
@@ -323,21 +337,28 @@ static uint8_t ide_identify(
         0
     );
 
+
     outb(
         io + ATA_LBA_LOW,
         0
     );
+
 
     outb(
         io + ATA_LBA_MID,
         0
     );
 
+
     outb(
         io + ATA_LBA_HIGH,
         0
     );
 
+
+    // --------------------------------------------------------
+    // IDENTIFY PACKET DEVICE
+    // --------------------------------------------------------
 
     outb(
         io + ATA_COMMAND,
@@ -356,6 +377,10 @@ static uint8_t ide_identify(
         return 0;
 
 
+    // --------------------------------------------------------
+    // Wait until no longer busy
+    // --------------------------------------------------------
+
     if (!wait_not_busy(io))
         return 0;
 
@@ -369,7 +394,7 @@ static uint8_t ide_identify(
 
 
     // --------------------------------------------------------
-    // IDENTIFY PACKET should have data ready
+    // IDENTIFY PACKET should provide data
     // --------------------------------------------------------
 
     if (!(status & ATA_DRQ))
@@ -377,10 +402,9 @@ static uint8_t ide_identify(
 
 
     // --------------------------------------------------------
-    // Consume the 512-byte identify packet.
+    // Read the 512-byte identification block.
     //
-    // We don't need the identification strings yet, but the
-    // device's data phase must be drained.
+    // 512 bytes / 2 = 256 words
     // --------------------------------------------------------
 
     uint16_t identify_buffer[256];
@@ -429,6 +453,10 @@ static void check_device(
     {
         print(": ATAPI CD-ROM\n");
 
+
+        // ----------------------------------------------------
+        // Select the first ATAPI drive found
+        // ----------------------------------------------------
 
         if (cdrom_io == 0)
         {
@@ -489,7 +517,7 @@ void cdrom_init(void)
 
 
     // --------------------------------------------------------
-    // Result
+    // Final result
     // --------------------------------------------------------
 
     if (cdrom_io == 0)
