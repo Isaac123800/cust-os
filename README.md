@@ -22,4 +22,10 @@ iso9660.c:(.text+0x4a3): undefined reference to `cdrom_read_sector'
 ld: iso9660.c:(.text+0x63b): undefined reference to `cdrom_read_sector'
 make: *** [Makefile:30: all] Error 1
 
+Installing for i386-pc platform.
+grub-install: warning: disk does not exist, so falling back to partition device /dev/sda2.
+grub-install: warning: disk does not exist, so falling back to partition device /dev/sda2.
+grub-install: warning: disk does not exist, so falling back to partition device /dev/sda2.
+grub-install: error: disk `hostdisk//dev/sda2' not found.
+
 
