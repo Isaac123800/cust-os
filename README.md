@@ -12,4 +12,14 @@ drivers/cdrom.c:454:13: note: previous definition of ‘reason’ with type ‘u
       |             ^~~~~~
 make: *** [Makefile:25: all] Error 1
 
+ld: warning: build/kernel.bin has a LOAD segment with RWX permissions
+ld: build/iso9660.o: in function `iso_init':
+iso9660.c:(.text+0x177): undefined reference to `cdrom_read_sector'
+ld: build/iso9660.o: in function `iso_list_root':
+iso9660.c:(.text+0x2d7): undefined reference to `cdrom_read_sector'
+ld: build/iso9660.o: in function `iso_read_file':
+iso9660.c:(.text+0x4a3): undefined reference to `cdrom_read_sector'
+ld: iso9660.c:(.text+0x63b): undefined reference to `cdrom_read_sector'
+make: *** [Makefile:30: all] Error 1
+
 
