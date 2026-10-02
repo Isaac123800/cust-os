@@ -3,7 +3,6 @@
 #include "../include/types.h"
 #include "io.h"
 
-
 extern void print(char *text);
 extern void print_hex(uint8_t value);
 
@@ -45,6 +44,7 @@ extern void print_hex(uint8_t value);
 // ============================================================
 
 #define ATA_IDENTIFY            0xEC
+#define ATA_IDENTIFY_PACKET     0xA1
 #define ATA_PACKET              0xA0
 
 
@@ -75,7 +75,6 @@ static uint16_t cdrom_io = 0;
 static uint8_t cdrom_drive = 0;
 
 
-
 // ============================================================
 // DELAY
 // ============================================================
@@ -89,7 +88,6 @@ static void ide_delay(void)
 }
 
 
-
 // ============================================================
 // WAIT UNTIL NOT BUSY
 // ============================================================
@@ -98,11 +96,11 @@ static bool wait_not_busy(uint16_t io)
 {
     int timeout = 5000000;
 
-    while(timeout--)
+    while (timeout--)
     {
         uint8_t status = inb(io + ATA_STATUS);
 
-        if(!(status & ATA_BSY))
+        if (!(status & ATA_BSY))
             return true;
     }
 
@@ -110,35 +108,27 @@ static bool wait_not_busy(uint16_t io)
 }
 
 
-
 // ============================================================
-// WAIT FOR DATA REQUEST
+// WAIT FOR DRQ
 // ============================================================
 
 static bool wait_drq(uint16_t io)
 {
     int timeout = 5000000;
 
-    while(timeout--)
+    while (timeout--)
     {
         uint8_t status = inb(io + ATA_STATUS);
 
-
-        if(status & ATA_ERR)
+        if (status & ATA_ERR)
             return false;
 
-
-        if(!(status & ATA_BSY) &&
-           (status & ATA_DRQ))
-        {
+        if (!(status & ATA_BSY) && (status & ATA_DRQ))
             return true;
-        }
     }
-
 
     return false;
 }
-
 
 
 // ============================================================
@@ -156,7 +146,6 @@ static void dump_status(uint16_t io)
     uint8_t reason =
         inb(io + ATA_INTERRUPT_REASON);
 
-
     print("STATUS=");
     print_hex(status);
 
@@ -170,9 +159,14 @@ static void dump_status(uint16_t io)
 }
 
 
-
 // ============================================================
 // IDENTIFY DEVICE
+//
+// Return values:
+//
+// 0 = no device
+// 1 = ATA device
+// 2 = ATAPI device
 // ============================================================
 
 static uint8_t ide_identify(
@@ -180,20 +174,62 @@ static uint8_t ide_identify(
     uint8_t drive
 )
 {
+    uint8_t device =
+        0xA0 | (drive << 4);
+
+
+    // --------------------------------------------------------
+    // Select drive
+    // --------------------------------------------------------
+
     outb(
         io + ATA_DEVICE,
-        0xA0 | (drive << 4)
+        device
     );
-
 
     ide_delay();
 
 
-    outb(io + ATA_SECTOR_COUNT, 0);
-    outb(io + ATA_LBA_LOW, 0);
-    outb(io + ATA_LBA_MID, 0);
-    outb(io + ATA_LBA_HIGH, 0);
+    // --------------------------------------------------------
+    // Clear task-file registers
+    // --------------------------------------------------------
 
+    outb(
+        io + ATA_SECTOR_COUNT,
+        0
+    );
+
+    outb(
+        io + ATA_LBA_LOW,
+        0
+    );
+
+    outb(
+        io + ATA_LBA_MID,
+        0
+    );
+
+    outb(
+        io + ATA_LBA_HIGH,
+        0
+    );
+
+
+    // --------------------------------------------------------
+    // Check status before command
+    // --------------------------------------------------------
+
+    uint8_t status =
+        inb(io + ATA_STATUS);
+
+
+    if (status == 0xFF)
+        return 0;
+
+
+    // --------------------------------------------------------
+    // Try ATA IDENTIFY
+    // --------------------------------------------------------
 
     outb(
         io + ATA_COMMAND,
@@ -201,20 +237,37 @@ static uint8_t ide_identify(
     );
 
 
-    uint8_t status =
+    ide_delay();
+
+
+    status =
         inb(io + ATA_STATUS);
 
 
+    // --------------------------------------------------------
+    // No device
+    // --------------------------------------------------------
 
-    if(status == 0)
+    if (status == 0)
         return 0;
 
 
+    // --------------------------------------------------------
+    // Wait until device isn't busy
+    // --------------------------------------------------------
 
-    if(!wait_not_busy(io))
+    if (!wait_not_busy(io))
         return 0;
 
 
+    // --------------------------------------------------------
+    // Check ATAPI signature
+    //
+    // ATAPI normally reports:
+    //
+    // LBA MID  = 0x14
+    // LBA HIGH = 0xEB
+    // --------------------------------------------------------
 
     uint8_t mid =
         inb(io + ATA_LBA_MID);
@@ -223,28 +276,125 @@ static uint8_t ide_identify(
         inb(io + ATA_LBA_HIGH);
 
 
-
-    // ATAPI signature
-
-    if(mid == 0x14 &&
-       high == 0xEB)
+    if (mid == 0x14 &&
+        high == 0xEB)
     {
         return 2;
     }
 
 
+    // --------------------------------------------------------
+    // If IDENTIFY succeeded, it is an ATA device
+    // --------------------------------------------------------
 
-    status = inb(io + ATA_STATUS);
+    status =
+        inb(io + ATA_STATUS);
 
 
-    if(status & ATA_ERR)
+    if (status & ATA_ERR)
+    {
+        /*
+         * IDENTIFY failed.
+         *
+         * It may still be an ATAPI device, so explicitly
+         * try IDENTIFY PACKET DEVICE.
+         */
+    }
+    else
+    {
+        return 1;
+    }
+
+
+    // --------------------------------------------------------
+    // ATAPI IDENTIFY PACKET DEVICE
+    // --------------------------------------------------------
+
+    outb(
+        io + ATA_DEVICE,
+        device
+    );
+
+    ide_delay();
+
+
+    outb(
+        io + ATA_SECTOR_COUNT,
+        0
+    );
+
+    outb(
+        io + ATA_LBA_LOW,
+        0
+    );
+
+    outb(
+        io + ATA_LBA_MID,
+        0
+    );
+
+    outb(
+        io + ATA_LBA_HIGH,
+        0
+    );
+
+
+    outb(
+        io + ATA_COMMAND,
+        ATA_IDENTIFY_PACKET
+    );
+
+
+    ide_delay();
+
+
+    status =
+        inb(io + ATA_STATUS);
+
+
+    if (status == 0)
         return 0;
 
 
+    if (!wait_not_busy(io))
+        return 0;
 
-    return 1;
+
+    status =
+        inb(io + ATA_STATUS);
+
+
+    if (status & ATA_ERR)
+        return 0;
+
+
+    // --------------------------------------------------------
+    // IDENTIFY PACKET should have data ready
+    // --------------------------------------------------------
+
+    if (!(status & ATA_DRQ))
+        return 0;
+
+
+    // --------------------------------------------------------
+    // Consume the 512-byte identify packet.
+    //
+    // We don't need the identification strings yet, but the
+    // device's data phase must be drained.
+    // --------------------------------------------------------
+
+    uint16_t identify_buffer[256];
+
+
+    insw(
+        io + ATA_DATA,
+        identify_buffer,
+        256
+    );
+
+
+    return 2;
 }
-
 
 
 // ============================================================
@@ -258,35 +408,35 @@ static void check_device(
 )
 {
     uint8_t result =
-        ide_identify(io, drive);
-
+        ide_identify(
+            io,
+            drive
+        );
 
 
     print(name);
 
 
-
-    if(result == 0)
+    if (result == 0)
     {
         print(": Empty\n");
     }
-    else if(result == 1)
+    else if (result == 1)
     {
         print(": ATA Disk\n");
     }
-    else if(result == 2)
+    else if (result == 2)
     {
         print(": ATAPI CD-ROM\n");
 
 
-        if(cdrom_io == 0)
+        if (cdrom_io == 0)
         {
             cdrom_io = io;
             cdrom_drive = drive;
         }
     }
 }
-
 
 
 // ============================================================
@@ -302,6 +452,10 @@ void cdrom_init(void)
     cdrom_drive = 0;
 
 
+    // --------------------------------------------------------
+    // Primary channel
+    // --------------------------------------------------------
+
     check_device(
         PRIMARY_IO,
         0,
@@ -315,6 +469,10 @@ void cdrom_init(void)
         "Primary Slave"
     );
 
+
+    // --------------------------------------------------------
+    // Secondary channel
+    // --------------------------------------------------------
 
     check_device(
         SECONDARY_IO,
@@ -330,7 +488,11 @@ void cdrom_init(void)
     );
 
 
-    if(cdrom_io == 0)
+    // --------------------------------------------------------
+    // Result
+    // --------------------------------------------------------
+
+    if (cdrom_io == 0)
     {
         print("No ATAPI CD-ROM found\n");
     }
@@ -341,269 +503,4 @@ void cdrom_init(void)
 
 
     print("IDENTIFY COMPLETE\n");
-}
-// ============================================================
-// READ ONE ISO9660 SECTOR
-// ============================================================
-
-bool cdrom_read_sector(
-    uint32_t sector,
-    uint8_t *buffer
-)
-{
-    if(cdrom_io == 0)
-    {
-        print("ATAPI: No CD-ROM\n");
-        return false;
-    }
-
-
-    uint16_t io = cdrom_io;
-
-
-    uint8_t packet[12];
-
-
-    for(int i = 0; i < 12; i++)
-        packet[i] = 0;
-
-
-
-    // --------------------------------------------------------
-    // SCSI READ(10)
-    // --------------------------------------------------------
-
-    packet[0] = 0x28;
-
-
-    // LBA (big endian)
-
-    packet[2] = (sector >> 24) & 0xFF;
-    packet[3] = (sector >> 16) & 0xFF;
-    packet[4] = (sector >> 8) & 0xFF;
-    packet[5] = sector & 0xFF;
-
-
-    // Transfer length = 1 sector
-
-    packet[7] = 0;
-    packet[8] = 1;
-
-
-
-    print("ATAPI: READ SECTOR\n");
-
-
-
-    // --------------------------------------------------------
-    // Select drive
-    // --------------------------------------------------------
-
-    outb(
-        io + ATA_DEVICE,
-        0xA0 | (cdrom_drive << 4)
-    );
-
-
-    ide_delay();
-
-
-
-    if(!wait_not_busy(io))
-    {
-        print("ATAPI: Drive busy\n");
-        dump_status(io);
-        return false;
-    }
-
-
-
-    // --------------------------------------------------------
-    // Set transfer size
-    // --------------------------------------------------------
-
-    outb(
-        io + ATA_FEATURES,
-        0
-    );
-
-
-    outb(
-        io + ATA_BYTE_COUNT_LOW,
-        0x00
-    );
-
-
-    outb(
-        io + ATA_BYTE_COUNT_HIGH,
-        0x08
-    );
-
-
-
-    // --------------------------------------------------------
-    // Send PACKET command
-    // --------------------------------------------------------
-
-    outb(
-        io + ATA_COMMAND,
-        ATA_PACKET
-    );
-
-
-    print("ATAPI: PACKET SENT\n");
-
-
-
-    if(!wait_drq(io))
-    {
-        print("ATAPI: No command DRQ\n");
-        dump_status(io);
-        return false;
-    }
-
-
-
-    uint8_t reason =
-        inb(io + ATA_INTERRUPT_REASON);
-
-
-
-    if(!(reason & ATAPI_COD) ||
-        (reason & ATAPI_IO))
-    {
-        print("ATAPI: Bad command phase\n");
-        dump_status(io);
-        return false;
-    }
-
-
-
-    // --------------------------------------------------------
-    // Send READ(10) packet
-    // --------------------------------------------------------
-
-    outsw(
-        io + ATA_DATA,
-        packet,
-        6
-    );
-
-
-    print("ATAPI: READ10 SENT\n");
-
-
-
-    // --------------------------------------------------------
-    // Wait for data phase
-    // --------------------------------------------------------
-
-    int timeout = 5000000;
-
-
-    while(timeout--)
-    {
-        uint8_t status =
-            inb(io + ATA_STATUS);
-
-
-        if(status & ATA_ERR)
-        {
-            print("ATAPI: ERROR\n");
-            dump_status(io);
-            return false;
-        }
-
-
-        if(status & ATA_DRQ)
-            break;
-    }
-
-
-
-    if(timeout <= 0)
-    {
-        print("ATAPI: DATA TIMEOUT\n");
-        dump_status(io);
-        return false;
-    }
-
-
-
-    reason =
-        inb(io + ATA_INTERRUPT_REASON);
-
-
-
-    print("ATAPI REASON=");
-    print_hex(reason);
-    print("\n");
-
-
-
-    if((reason & ATAPI_COD) ||
-       !(reason & ATAPI_IO))
-    {
-        print("ATAPI: Wrong data phase\n");
-        return false;
-    }
-
-
-
-    uint16_t bytes =
-        inb(io + ATA_BYTE_COUNT_LOW) |
-        (inb(io + ATA_BYTE_COUNT_HIGH) << 8);
-
-
-
-    print("ATAPI BYTES=");
-    print_hex(bytes >> 8);
-    print_hex(bytes & 0xFF);
-    print("\n");
-
-
-
-    if(bytes == 0 || bytes > 2048)
-    {
-        print("ATAPI: Invalid size\n");
-        return false;
-    }
-
-
-
-    // --------------------------------------------------------
-    // Read sector data
-    // --------------------------------------------------------
-
-    insw(
-        io + ATA_DATA,
-        buffer,
-        bytes / 2
-    );
-
-
-    print("ATAPI: DATA READ\n");
-
-
-
-    // Clear final status
-
-    uint8_t status =
-        inb(io + ATA_STATUS);
-
-
-
-    if(status & ATA_ERR)
-    {
-        print("ATAPI: FINAL ERROR\n");
-        dump_status(io);
-        return false;
-    }
-
-
-
-    print("ATAPI: READ SUCCESS\n");
-
-
-    return true;
 }
