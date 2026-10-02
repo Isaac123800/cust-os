@@ -1,4 +1,5 @@
 ISO_NAME = Custos.iso
+DISK_NAME = work.img
 
 CC = gcc
 AS = nasm
@@ -7,9 +8,11 @@ LD = ld
 CFLAGS = -m32 -ffreestanding -Iinclude -I.
 LDFLAGS = -m elf_i386 -T linker.ld
 
-
 all:
 	mkdir -p build
+	if [ ! -f $(DISK_NAME) ]; then \
+		qemu-img create -f raw $(DISK_NAME) 512M; \
+	fi
 
 
 	# Bootloader
