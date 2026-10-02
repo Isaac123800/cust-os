@@ -52,3 +52,14 @@ Disk identifier: 0x01e799f7
 Device     Boot Start    End Sectors Size Id Type
 work.img1        2048 133119  131072  64M 83 Linux
 
+Disk work.img: 512 MiB, 536870912 bytes, 1048576 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: dos
+Disk identifier: 0x01e799f7
+
+Device     Boot  Start     End Sectors  Size Id Type
+work.img1         2048  133119  131072   64M 83 Linux
+work.img2       133120 1048575  915456  447M 83 Linux
+
