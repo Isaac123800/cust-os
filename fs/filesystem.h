@@ -8,6 +8,8 @@
 
 #define FS_SECTOR_SIZE 512
 
+#define FS_DISK_OFFSET 0
+
 
 #define FS_SUPERBLOCK_SECTOR 1
 
