@@ -28,4 +28,6 @@ grub-install: warning: disk does not exist, so falling back to partition device 
 grub-install: warning: disk does not exist, so falling back to partition device /dev/sda2.
 grub-install: error: disk `hostdisk//dev/sda2' not found.
 
+-rw-r--r-- 1 isaac isaac 512M Oct  2 18:04 work.img
+
 
