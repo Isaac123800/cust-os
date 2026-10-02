@@ -3,25 +3,71 @@
 
 #include "../include/types.h"
 
-/* Write 8 bits to an I/O port */
+
+// ============================================================
+// 8-BIT I/O
+// ============================================================
+
+/* Write an 8-bit value to an I/O port */
 void outb(uint16_t port, uint8_t value);
 
-/* Read 8 bits from an I/O port */
+/* Read an 8-bit value from an I/O port */
 uint8_t inb(uint16_t port);
 
-/* Write 16 bits to an I/O port */
+
+// ============================================================
+// 16-BIT I/O
+// ============================================================
+
+/* Write a 16-bit value to an I/O port */
 void outw(uint16_t port, uint16_t value);
 
-/* Read 16 bits from an I/O port */
+/* Read a 16-bit value from an I/O port */
 uint16_t inw(uint16_t port);
 
-/* Read multiple 16-bit words from a port */
-void insw(uint16_t port, void *buffer, uint32_t count);
 
-/* Write multiple 16-bit words to a port */
-void outsw(uint16_t port, const void *buffer, uint32_t count);
+// ============================================================
+// STRING I/O
+// ============================================================
 
-/* Small delay used by hardware drivers */
+/*
+ * Read 'count' 16-bit words from an I/O port.
+ *
+ * The destination buffer must contain enough space for:
+ *
+ *     count * 2 bytes
+ */
+void insw(
+    uint16_t port,
+    void *buffer,
+    uint32_t count
+);
+
+
+/*
+ * Write 'count' 16-bit words to an I/O port.
+ *
+ * The source buffer must contain at least:
+ *
+ *     count * 2 bytes
+ */
+void outsw(
+    uint16_t port,
+    const void *buffer,
+    uint32_t count
+);
+
+
+// ============================================================
+// I/O WAIT
+// ============================================================
+
+/*
+ * Small hardware I/O delay.
+ *
+ * Normally implemented using port 0x80 on x86.
+ */
 void io_wait(void);
+
 
 #endif
