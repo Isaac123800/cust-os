@@ -884,10 +884,9 @@ bool fs_read(
         if(!disk_read(
             FS_DISK_OFFSET + file->start_sector + s,
             temp))
+        {
             return false;
         }
-
-
 
         for(uint32_t i = 0;
             i < FS_SECTOR_SIZE &&
@@ -899,11 +898,7 @@ bool fs_read(
         }
     }
 
-
-
     buffer[size] = 0;
-
-
 
     return true;
 }
