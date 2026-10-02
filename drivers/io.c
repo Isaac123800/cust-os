@@ -1,5 +1,10 @@
 #include "io.h"
 
+
+// ============================================================
+// OUTB
+// ============================================================
+
 void outb(uint16_t port, uint8_t value)
 {
     __asm__ volatile (
@@ -8,6 +13,11 @@ void outb(uint16_t port, uint8_t value)
         : "a"(value), "Nd"(port)
     );
 }
+
+
+// ============================================================
+// INB
+// ============================================================
 
 uint8_t inb(uint16_t port)
 {
@@ -22,6 +32,11 @@ uint8_t inb(uint16_t port)
     return value;
 }
 
+
+// ============================================================
+// OUTW
+// ============================================================
+
 void outw(uint16_t port, uint16_t value)
 {
     __asm__ volatile (
@@ -30,6 +45,11 @@ void outw(uint16_t port, uint16_t value)
         : "a"(value), "Nd"(port)
     );
 }
+
+
+// ============================================================
+// INW
+// ============================================================
 
 uint16_t inw(uint16_t port)
 {
@@ -44,7 +64,16 @@ uint16_t inw(uint16_t port)
     return value;
 }
 
-void insw(uint16_t port, void *buffer, uint32_t count)
+
+// ============================================================
+// INSW
+// ============================================================
+
+void insw(
+    uint16_t port,
+    void *buffer,
+    uint32_t count
+)
 {
     __asm__ volatile (
         "cld\n\t"
@@ -55,15 +84,30 @@ void insw(uint16_t port, void *buffer, uint32_t count)
     );
 }
 
-void outsw(uint16_t port, const void *buffer, uint32_t count)
+
+// ============================================================
+// OUTSW
+// ============================================================
+
+void outsw(
+    uint16_t port,
+    const void *buffer,
+    uint32_t count
+)
 {
     __asm__ volatile (
         "cld\n\t"
         "rep outsw"
         : "+S"(buffer), "+c"(count)
         : "d"(port)
+        : "memory"
     );
 }
+
+
+// ============================================================
+// IO WAIT
+// ============================================================
 
 void io_wait(void)
 {
