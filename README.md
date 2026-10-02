@@ -30,4 +30,9 @@ grub-install: error: disk `hostdisk//dev/sda2' not found.
 
 -rw-r--r-- 1 isaac isaac 512M Oct  2 18:04 work.img
 
+Disk work.img: 512 MiB, 536870912 bytes, 1048576 sectors
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+
 
