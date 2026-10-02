@@ -363,8 +363,7 @@ bool fs_format(void)
 
 
     fs.super.total_sectors =
-        disk_sector_count();
-
+    disk_sector_count() - FS_DISK_OFFSET;
 
 
     fs.super.file_table_start =
