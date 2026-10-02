@@ -305,7 +305,7 @@ static bool load_file_table(void)
 
 
     uint32_t sector =
-        FS_FILE_TABLE_START;
+    FS_DISK_OFFSET + FS_FILE_TABLE_START;
 
 
 
@@ -792,7 +792,7 @@ bool fs_write(
 
 
         if(!disk_write(
-            start + s,
+            FS_DISK_OFFSET + start + s,
             buffer))
         {
             return false;
@@ -882,9 +882,8 @@ bool fs_read(
         s++)
     {
         if(!disk_read(
-            file->start_sector + s,
+            FS_DISK_OFFSET + file->start_sector + s,
             temp))
-        {
             return false;
         }
 
