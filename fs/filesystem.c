@@ -242,8 +242,7 @@ static bool save_file_table(void)
 
 
     uint32_t sector =
-        FS_FILE_TABLE_START;
-
+         FS_DISK_OFFSET + FS_FILE_TABLE_START;
 
 
     while(offset < size)
