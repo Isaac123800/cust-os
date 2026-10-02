@@ -155,10 +155,10 @@ static bool save_superblock(void)
 
 
 
-    return disk_write(
-        FS_SUPERBLOCK_SECTOR,
-        buffer
-    );
+   return disk_write(
+    FS_DISK_OFFSET + FS_SUPERBLOCK_SECTOR,
+    buffer
+   );
 }
 
 
@@ -176,7 +176,7 @@ static bool load_superblock(void)
 
 
     if(!disk_read(
-        FS_SUPERBLOCK_SECTOR,
+        FS_DISK_OFFSET + FS_SUPERBLOCK_SECTOR,
         buffer))
     {
         return false;
