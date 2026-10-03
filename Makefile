@@ -22,7 +22,7 @@ all:
 	# Installed CustOS kernel entry - NO Multiboot
 	$(AS) -f elf32 boot/boot.asm -o build/boot.o
 
-	# Installer ISO kernel entry - WITH Multiboot
+	# Installer kernel entry - WITH Multiboot
 	$(AS) -f elf32 boot/multiboot.asm -o build/multiboot.o
 
 	# Kernel
@@ -43,7 +43,11 @@ all:
 	$(CC) $(CFLAGS) -c fs/filesystem.c -o build/filesystem.o
 	$(CC) $(CFLAGS) -c fs/iso9660.c -o build/iso9660.o
 
-	# Link installed CustOS kernel - NO Multiboot
+	# ------------------------------------------------
+	# Build installed CustOS kernel
+	# NO Multiboot header
+	# ------------------------------------------------
+
 	$(LD) $(LDFLAGS) \
 		build/boot.o \
 		build/kernel.o \
@@ -58,7 +62,15 @@ all:
 		build/iso9660.o \
 		-o build/kernel.elf
 
-	# Link installer kernel - WITH Multiboot
+	$(OBJCOPY) -O binary \
+		build/kernel.elf \
+		build/kernel.bin
+
+	# ------------------------------------------------
+	# Build installer kernel
+	# WITH Multiboot header
+	# ------------------------------------------------
+
 	$(LD) $(LDFLAGS) \
 		build/multiboot.o \
 		build/kernel.o \
@@ -73,20 +85,17 @@ all:
 		build/iso9660.o \
 		-o build/installer.elf
 
-	# Convert installed kernel to raw binary
-	$(OBJCOPY) -O binary build/kernel.elf build/kernel.bin
+	# ------------------------------------------------
+	# Create ISO
+	# ------------------------------------------------
 
-	# Convert installer kernel to raw binary
-	$(OBJCOPY) -O binary build/installer.elf build/installer.bin
-
-	# Create ISO structure
 	rm -rf iso
 	mkdir -p iso/boot/grub
 
-	# Installer kernel for GRUB
-	cp build/installer.bin iso/boot/kernel.bin
+	# GRUB installer kernel
+	cp build/installer.elf iso/boot/kernel.bin
 
-	# Installed CustOS kernel for custom bootloader
+	# Kernel that the installer will copy to the disk
 	cp build/kernel.bin iso/KERNEL.BIN
 
 	# Custom BIOS bootloader
@@ -95,7 +104,7 @@ all:
 	# GRUB configuration
 	cp grub/grub.cfg iso/boot/grub/grub.cfg
 
-	# Build ISO
+	# Build installer ISO
 	grub-mkrescue -o $(ISO_NAME) iso
 
 
