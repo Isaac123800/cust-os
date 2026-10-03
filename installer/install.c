@@ -112,7 +112,26 @@ bool install_system(void)
 
     print("Bootloader installed\n");
 
+    uint8_t test_sector[512];
 
+    print("Checking bootloader...\n");
+    
+    if(!disk_read(0, test_sector))
+    {
+        print("Could not read bootloader back\n");
+        return false;
+    }
+    
+    if(test_sector[510] == 0x55 &&
+       test_sector[511] == 0xAA)
+    {
+        print("Bootloader verified!\n");
+    }
+    else
+    {
+        print("BOOTLOADER VERIFY FAILED\n");
+    }
+    
     /*
         Read kernel from ISO
     */
