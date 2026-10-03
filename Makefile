@@ -105,7 +105,7 @@ all:
 	cp grub/grub.cfg iso/boot/grub/grub.cfg
 
 	# Build installer ISO
-	grub-mkrescue -o $(ISO_NAME) 
+	grub-mkrescue -o $(ISO_NAME) iso
 
 
 clean:
