@@ -6,31 +6,24 @@
 #include "../drivers/cdrom.h"
 #include "../drivers/disk.h"
 
-
 extern void print(char *text);
-
-
 
 static uint8_t kernel_buffer[65536];
 static uint8_t bootloader_buffer[512];
 
 
-
 bool install_system(void)
 {
-
     print("\nInstalling CustOS...\n\n");
 
 
-
     /*
-        Initialize hard disk first
+        Initialize hard disk
     */
 
     print("Initializing disk...\n");
 
     disk_init();
-
 
 
     /*
@@ -40,6 +33,20 @@ bool install_system(void)
     print("Initializing CD-ROM...\n");
 
     cdrom_init();
+
+
+    /*
+        Initialize ISO9660
+    */
+
+    print("Initializing ISO...\n");
+
+    iso_init();
+
+
+    /*
+        Read bootloader from ISO
+    */
 
     print("Reading bootloader...\n");
 
@@ -57,13 +64,11 @@ bool install_system(void)
     print("Bootloader loaded\n");
 
 
-
     /*
         Format target drive
     */
 
     print("Formatting drive...\n");
-
 
     if(!fs_format())
     {
@@ -71,8 +76,12 @@ bool install_system(void)
         return false;
     }
 
-
     print("Format complete\n");
+
+
+    /*
+        Install bootloader to sector 0
+    */
 
     print("Installing bootloader...\n");
 
@@ -82,14 +91,15 @@ bool install_system(void)
         return false;
     }
 
-    if(!disk_write(0, bootloader_buffer))
+    if(!disk_write(
+        0,
+        bootloader_buffer))
     {
         print("Could not install bootloader\n");
         return false;
     }
 
     print("Bootloader installed\n");
-
 
 
     /*
@@ -101,18 +111,13 @@ bool install_system(void)
     iso_list_root();
 
 
-
-
     /*
-        Load kernel from installer CD
+        Read kernel from ISO
     */
 
     print("\nReading KERNEL.BIN...\n");
 
-
     uint32_t size = 0;
-
-
 
     if(!iso_read_file(
         "KERNEL.BIN",
@@ -120,49 +125,54 @@ bool install_system(void)
         &size))
     {
         print("Could not read kernel.bin\n");
-
         return false;
     }
-
-
 
     print("Kernel loaded\n");
 
+
+    /*
+        Install raw kernel
+        Physical sectors 1-38
+    */
+
     print("Installing kernel...\n");
 
-    uint32_t kernel_sectors = (size + 511) / 512;
+    uint32_t kernel_sectors =
+        (size + 511) / 512;
 
-    for(uint32_t i = 0; i < kernel_sectors; i++)
+    for(uint32_t i = 0;
+        i < kernel_sectors;
+        i++)
     {
-    if(!disk_write(
-        1 + i,
-        kernel_buffer + (i * 512)))
-    {
-        print("Could not install kernel\n");
-        return false;
+        if(!disk_write(
+            1 + i,
+            kernel_buffer + (i * 512)))
+        {
+            print("Could not install kernel\n");
+            return false;
+        }
     }
-    }   
 
-print("Kernel installed\n");
-
+    print("Kernel installed\n");
 
 
     /*
-        Create kernel file
+        Also store KERNEL.BIN
+        inside the CustOS filesystem
     */
+
+    print("Creating kernel file...\n");
 
     if(!fs_create("KERNEL.BIN"))
     {
         print("Create failed\n");
-
         return false;
     }
 
 
-
-
     /*
-        Write kernel to HDD
+        Write kernel into filesystem
     */
 
     if(!fs_write(
@@ -171,26 +181,20 @@ print("Kernel installed\n");
         size))
     {
         print("Write failed\n");
-
         return false;
     }
-
-
 
     print("Kernel copied\n");
 
 
-
     /*
-        Save filesystem changes
+        Save filesystem
     */
 
     fs_sync();
 
 
-
     print("\nInstallation complete\n");
-
 
     return true;
 }
