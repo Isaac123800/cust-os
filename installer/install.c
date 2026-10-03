@@ -64,7 +64,7 @@ bool install_system(void)
     uint32_t bootloader_size = 0;
 
     if(!iso_read_file(
-        "BOOTLOADER.BIN",
+        "BOOTLOAD.BIN",
         bootloader_buffer,
         &bootloader_size))
     {
