@@ -6,35 +6,53 @@ start:
 
     mov [boot_drive], dl
 
+    ; Set up real-mode segments
+    xor ax, ax
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov sp, 0x7C00
+
     mov si, loading_message
     call print
 
-    ; Load 38 sectors starting at LBA 1
+    ; Load kernel: 38 sectors starting at BIOS sector 2
     mov ah, 0x02
     mov al, 38
     mov ch, 0
     mov cl, 2
     mov dh, 0
     mov dl, [boot_drive]
-    mov bx, 0x8000
-    int 0x13
 
+    ; Load kernel into 0x8000
+    mov bx, 0x8000
+
+    int 0x13
     jc disk_error
 
     mov si, loaded_message
     call print
 
-halt:
-    cli
-    hlt
-    jmp halt
+    ; Enable A20 so we can access memory above 1 MiB
+    in al, 0x92
+    or al, 00000010b
+    out 0x92, al
+
+    ; Load our Global Descriptor Table
+    lgdt [gdt_descriptor]
+
+    ; Enter protected mode
+    mov eax, cr0
+    or eax, 1
+    mov cr0, eax
+
+    ; Far jump flushes the CPU pipeline
+    jmp 0x08:protected_mode
 
 
-disk_error:
-    mov si, error_message
-    call print
-    jmp halt
-
+; --------------------------------------------------
+; Real-mode printing
+; --------------------------------------------------
 
 print:
     lodsb
@@ -51,6 +69,86 @@ print:
     ret
 
 
+disk_error:
+    mov si, error_message
+    call print
+
+.hang:
+    cli
+    hlt
+    jmp .hang
+
+
+; --------------------------------------------------
+; Global Descriptor Table
+; --------------------------------------------------
+
+gdt_start:
+
+gdt_null:
+    dq 0
+
+gdt_code:
+    dw 0xFFFF
+    dw 0
+    db 0
+    db 10011010b
+    db 11001111b
+    db 0
+
+gdt_data:
+    dw 0xFFFF
+    dw 0
+    db 0
+    db 10010010b
+    db 11001111b
+    db 0
+
+gdt_end:
+
+
+gdt_descriptor:
+    dw gdt_end - gdt_start - 1
+    dd gdt_start
+
+
+; --------------------------------------------------
+; 32-bit protected mode
+; --------------------------------------------------
+
+bits 32
+
+protected_mode:
+
+    ; Code segment = 0x08
+    ; Data segment = 0x10
+
+    mov ax, 0x10
+
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+
+    ; Give the kernel a stack
+    mov esp, 0x90000
+
+    ; Copy kernel from 0x8000 -> 0x100000
+    mov esi, 0x8000
+    mov edi, 0x100000
+
+    ; 19068 bytes / 4 = 4767 DWORDs
+    mov ecx, 4767
+
+    cld
+    rep movsd
+
+    ; Jump to kernel _start
+    ; Multiboot header occupies the first 12 bytes.
+    jmp 0x10000C
+
+
 boot_drive db 0
 
 loading_message db "Loading kernel...", 13, 10, 0
@@ -60,3 +158,5 @@ error_message   db "Disk read error!", 13, 10, 0
 
 times 510 - ($ - $$) db 0
 dw 0xAA55
+
+
