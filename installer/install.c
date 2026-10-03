@@ -7,10 +7,24 @@
 #include "../drivers/disk.h"
 
 extern void print(char *text);
+extern void print_hex(uint8_t value);
+
+
+/*
+    ============================================================
+    INSTALLER BUFFERS
+    ============================================================
+*/
 
 static uint8_t kernel_buffer[65536];
 static uint8_t bootloader_buffer[512];
 
+
+/*
+    ============================================================
+    INSTALL SYSTEM
+    ============================================================
+*/
 
 bool install_system(void)
 {
@@ -18,7 +32,9 @@ bool install_system(void)
 
 
     /*
-        Initialize hard disk
+        --------------------------------------------------------
+        Initialise target disk
+        --------------------------------------------------------
     */
 
     print("Initializing disk...\n");
@@ -27,7 +43,9 @@ bool install_system(void)
 
 
     /*
-        Initialize installer CD
+        --------------------------------------------------------
+        Initialise CD-ROM
+        --------------------------------------------------------
     */
 
     print("Initializing CD-ROM...\n");
@@ -36,7 +54,9 @@ bool install_system(void)
 
 
     /*
-        Initialize ISO9660
+        --------------------------------------------------------
+        Initialise ISO filesystem
+        --------------------------------------------------------
     */
 
     print("Initializing ISO...\n");
@@ -45,9 +65,9 @@ bool install_system(void)
 
 
     /*
-        DEBUG:
-        List everything in the ISO root directory
-        before trying to read any files.
+        --------------------------------------------------------
+        Show ISO contents
+        --------------------------------------------------------
     */
 
     print("\nListing ISO...\n");
@@ -56,7 +76,9 @@ bool install_system(void)
 
 
     /*
+        --------------------------------------------------------
         Read bootloader from ISO
+        --------------------------------------------------------
     */
 
     print("\nReading bootloader...\n");
@@ -76,7 +98,35 @@ bool install_system(void)
 
 
     /*
-        Format target drive
+        --------------------------------------------------------
+        Check bootloader size
+        --------------------------------------------------------
+    */
+
+    if(bootloader_size != 512)
+    {
+        print("Invalid bootloader size\n");
+
+        print("Size: ");
+
+        print_hex(
+            (uint8_t)(bootloader_size >> 8)
+        );
+
+        print_hex(
+            (uint8_t)bootloader_size
+        );
+
+        print("\n");
+
+        return false;
+    }
+
+
+    /*
+        --------------------------------------------------------
+        Format target disk
+        --------------------------------------------------------
     */
 
     print("Formatting drive...\n");
@@ -91,43 +141,16 @@ bool install_system(void)
 
 
     /*
-        Install bootloader to sector 0
+        --------------------------------------------------------
+        Install bootloader into sector 0
+        --------------------------------------------------------
     */
 
     print("Installing bootloader...\n");
 
-    if(bootloader_size != 512)
-    {
-        print("Invalid bootloader size\n");
-        return false;
-    }
-
     if(!disk_write(
         0,
         bootloader_buffer))
-
-        print("READBACK: ");
-        
-        print_hex(test_sector[3]);
-        print(" ");
-        
-        print(" ... ");
-        
-        print_hex(test_sector[0]);
-        print(" ");
-        
-        print_hex(test_sector[1]);
-        print(" ");
-        
-        print_hex(test_sector[2]);
-        print(" ");
-        
-        print_hex(test_sector[510]);
-        print(" ");
-        
-        print_hex(test_sector[511]);
-        
-        print("\n");
     {
         print("Could not install bootloader\n");
         return false;
@@ -135,16 +158,67 @@ bool install_system(void)
 
     print("Bootloader installed\n");
 
+
+    /*
+        --------------------------------------------------------
+        Read sector 0 back immediately
+        --------------------------------------------------------
+    */
+
     uint8_t test_sector[512];
 
     print("Checking bootloader...\n");
-    
-    if(!disk_read(0, test_sector))
+
+    if(!disk_read(
+        0,
+        test_sector))
     {
         print("Could not read bootloader back\n");
         return false;
     }
-    
+
+
+    /*
+        --------------------------------------------------------
+        Show first four bytes
+        --------------------------------------------------------
+    */
+
+    print("READBACK: ");
+
+    print_hex(test_sector[0]);
+    print(" ");
+
+    print_hex(test_sector[1]);
+    print(" ");
+
+    print_hex(test_sector[2]);
+    print(" ");
+
+    print_hex(test_sector[3]);
+    print(" ... ");
+
+
+    /*
+        --------------------------------------------------------
+        Show boot signature
+        --------------------------------------------------------
+    */
+
+    print_hex(test_sector[510]);
+    print(" ");
+
+    print_hex(test_sector[511]);
+
+    print("\n");
+
+
+    /*
+        --------------------------------------------------------
+        Verify boot signature
+        --------------------------------------------------------
+    */
+
     if(test_sector[510] == 0x55 &&
        test_sector[511] == 0xAA)
     {
@@ -153,10 +227,14 @@ bool install_system(void)
     else
     {
         print("BOOTLOADER VERIFY FAILED\n");
+        return false;
     }
-    
+
+
     /*
+        --------------------------------------------------------
         Read kernel from ISO
+        --------------------------------------------------------
     */
 
     print("\nReading KERNEL.BIN...\n");
@@ -176,11 +254,9 @@ bool install_system(void)
 
 
     /*
-        Install raw kernel.
-        
-        Sector 0       = bootloader
-        Sectors 1-38   = raw kernel
-        Sector 39+     = filesystem
+        --------------------------------------------------------
+        Install raw kernel sectors
+        --------------------------------------------------------
     */
 
     print("Installing kernel...\n");
@@ -205,8 +281,9 @@ bool install_system(void)
 
 
     /*
-        Also create KERNEL.BIN
-        inside the CustOS filesystem
+        --------------------------------------------------------
+        Create filesystem kernel file
+        --------------------------------------------------------
     */
 
     print("Creating kernel file...\n");
@@ -219,7 +296,9 @@ bool install_system(void)
 
 
     /*
-        Write kernel to filesystem
+        --------------------------------------------------------
+        Write kernel into filesystem
+        --------------------------------------------------------
     */
 
     if(!fs_write(
@@ -235,11 +314,19 @@ bool install_system(void)
 
 
     /*
-        Save filesystem changes
+        --------------------------------------------------------
+        Synchronise filesystem
+        --------------------------------------------------------
     */
 
     fs_sync();
 
+
+    /*
+        --------------------------------------------------------
+        Finished
+        --------------------------------------------------------
+    */
 
     print("\nInstallation complete\n");
 
