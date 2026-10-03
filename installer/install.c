@@ -128,6 +128,22 @@ bool install_system(void)
 
     print("Kernel loaded\n");
 
+    print("Installing kernel...\n");
+
+    uint32_t kernel_sectors = (size + 511) / 512;
+
+    for(uint32_t i = 0; i < kernel_sectors; i++)
+    {
+    if(!disk_write(
+        1 + i,
+        kernel_buffer + (i * 512)))
+    {
+        print("Could not install kernel\n");
+        return false;
+    }
+    }   
+
+print("Kernel installed\n");
 
 
 
