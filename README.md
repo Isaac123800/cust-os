@@ -63,3 +63,4 @@ Device     Boot  Start     End Sectors  Size Id Type
 work.img1         2048  133119  131072   64M 83 Linux
 work.img2       133120 1048575  915456  447M 83 Linux
 
+build/kernel.bin: ELF 32-bit LSB executable, Intel 80386, version 1 (SYSV), statically linked, not stripped
