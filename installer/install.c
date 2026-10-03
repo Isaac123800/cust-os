@@ -105,6 +105,29 @@ bool install_system(void)
     if(!disk_write(
         0,
         bootloader_buffer))
+
+        print("READBACK: ");
+        
+        print_hex(test_sector[3]);
+        print(" ");
+        
+        print(" ... ");
+        
+        print_hex(test_sector[0]);
+        print(" ");
+        
+        print_hex(test_sector[1]);
+        print(" ");
+        
+        print_hex(test_sector[2]);
+        print(" ");
+        
+        print_hex(test_sector[510]);
+        print(" ");
+        
+        print_hex(test_sector[511]);
+        
+        print("\n");
     {
         print("Could not install bootloader\n");
         return false;
