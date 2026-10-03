@@ -16,7 +16,7 @@ start:
     mov si, loading_message
     call print
 
-    ; Load kernel: 38 sectors starting at BIOS sector 2
+    ; Load 38 sectors starting at sector 2
     mov ah, 0x02
     mov al, 38
     mov ch, 0
@@ -33,20 +33,21 @@ start:
     mov si, loaded_message
     call print
 
-    ; STOP HERE
-    cli
-    hlt
-    jmp $
+    ; Enable A20
+    in al, 0x92
+    or al, 00000010b
+    out 0x92, al
 
+    ; Load GDT
+    lgdt [gdt_descriptor]
 
-disk_error:
-    mov si, error_message
-    call print
+    ; Enter protected mode
+    mov eax, cr0
+    or eax, 1
+    mov cr0, eax
 
-.hang:
-    cli
-    hlt
-    jmp .hang
+    ; Far jump into 32-bit code
+    jmp 0x08:protected_mode
 
 
 print:
@@ -64,6 +65,83 @@ print:
     ret
 
 
+disk_error:
+    mov si, error_message
+    call print
+
+.hang:
+    cli
+    hlt
+    jmp .hang
+
+
+; --------------------------------
+; Global Descriptor Table
+; --------------------------------
+
+gdt_start:
+
+gdt_null:
+    dq 0
+
+gdt_code:
+    dw 0xFFFF
+    dw 0
+    db 0
+    db 10011010b
+    db 11001111b
+    db 0
+
+gdt_data:
+    dw 0xFFFF
+    dw 0
+    db 0
+    db 10010010b
+    db 11001111b
+    db 0
+
+gdt_end:
+
+gdt_descriptor:
+    dw gdt_end - gdt_start - 1
+    dd gdt_start
+
+
+; --------------------------------
+; Protected mode
+; --------------------------------
+
+bits 32
+
+protected_mode:
+
+    ; Set data segments
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+
+    ; Kernel stack
+    mov esp, 0x90000
+
+    ; Copy kernel:
+    ; 0x8000 -> 0x100000
+
+    mov esi, 0x8000
+    mov edi, 0x100000
+
+    ; 19036 / 4 = 4759 DWORDs
+    mov ecx, 4759
+
+    cld
+    rep movsd
+
+    ; Jump to kernel entry
+    jmp 0x100000
+
+
 boot_drive db 0
 
 loading_message db "Loading kernel...", 13, 10, 0
@@ -73,4 +151,6 @@ error_message   db "Disk read error!", 13, 10, 0
 
 times 510 - ($ - $$) db 0
 dw 0xAA55
+
+
 
