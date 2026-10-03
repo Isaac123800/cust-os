@@ -35,46 +35,7 @@ Units: sectors of 1 * 512 = 512 bytes
 Sector size (logical/physical): 512 bytes / 512 bytes
 I/O size (minimum/optimal): 512 bytes / 512 bytes
 
-Disk work.img: 512 MiB, 536870912 bytes, 1048576 sectors
-Units: sectors of 1 * 512 = 512 bytes
-Sector size (logical/physical): 512 bytes / 512 bytes
-I/O size (minimum/optimal): 512 bytes / 512 bytes
-Disklabel type: dos
-Disk identifier: 0x01e799f7
+build/installer.elf:     file format elf32-i386
 
-Disk work.img: 512 MiB, 536870912 bytes, 1048576 sectors
-Units: sectors of 1 * 512 = 512 bytes
-Sector size (logical/physical): 512 bytes / 512 bytes
-I/O size (minimum/optimal): 512 bytes / 512 bytes
-Disklabel type: dos
-Disk identifier: 0x01e799f7
+objdump: section '.multiboot' mentioned in a -j option, but not found in any input file
 
-Device     Boot Start    End Sectors Size Id Type
-work.img1        2048 133119  131072  64M 83 Linux
-
-Disk work.img: 512 MiB, 536870912 bytes, 1048576 sectors
-Units: sectors of 1 * 512 = 512 bytes
-Sector size (logical/physical): 512 bytes / 512 bytes
-I/O size (minimum/optimal): 512 bytes / 512 bytes
-Disklabel type: dos
-Disk identifier: 0x01e799f7
-
-Device     Boot  Start     End Sectors  Size Id Type
-work.img1         2048  133119  131072   64M 83 Linux
-work.img2       133120 1048575  915456  447M 83 Linux
-
-build/kernel.bin: ELF 32-bit LSB executable, Intel 80386, version 1 (SYSV), statically linked, not stripped
-
-xorriso 1.5.6 : RockRidge filesystem manipulator, libburnia project.
-
-xorriso : NOTE : Loading ISO image tree from LBA 0
-xorriso : UPDATE :     304 nodes read in 1 seconds
-xorriso : NOTE : Detected El-Torito boot information which currently is set to be discarded
-Drive current: -indev 'Custos.iso'
-Media current: stdio file, overwriteable
-Media status : is written , is appendable
-Boot record  : El Torito , MBR protective-msdos-label grub2-mbr cyl-align-off
-Media summary: 1 session, 2590 data blocks, 5180k data, 22.2g free
-Volume id    : 'ISOIMAGE'
-xorriso : FAILURE : -find[ix]: unknown option '-print'
-xorriso : aborting : -abort_on 'FAILURE' encountered 'FAILURE'
