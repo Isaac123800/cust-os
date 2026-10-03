@@ -12,6 +12,7 @@ extern void print(char *text);
 
 
 static uint8_t kernel_buffer[65536];
+static uint8_t bootloader_buffer[512];
 
 
 
@@ -40,6 +41,20 @@ bool install_system(void)
 
     cdrom_init();
 
+    print("Reading bootloader...\n");
+
+    uint32_t bootloader_size = 0;
+
+    if(!iso_read_file(
+        "BOOTLOADER.BIN",
+        bootloader_buffer,
+        &bootloader_size))
+    {
+        print("Could not read bootloader.bin\n");
+        return false;
+    }
+
+    print("Bootloader loaded\n");
 
 
 
@@ -59,6 +74,21 @@ bool install_system(void)
 
     print("Format complete\n");
 
+    print("Installing bootloader...\n");
+
+    if(bootloader_size != 512)
+    {
+        print("Invalid bootloader size\n");
+        return false;
+    }
+
+    if(!disk_write(0, bootloader_buffer))
+    {
+        print("Could not install bootloader\n");
+        return false;
+    }
+
+    print("Bootloader installed\n");
 
 
 
