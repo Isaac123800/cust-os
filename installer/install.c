@@ -45,10 +45,21 @@ bool install_system(void)
 
 
     /*
+        DEBUG:
+        List everything in the ISO root directory
+        before trying to read any files.
+    */
+
+    print("\nListing ISO...\n");
+
+    iso_list_root();
+
+
+    /*
         Read bootloader from ISO
     */
 
-    print("Reading bootloader...\n");
+    print("\nReading bootloader...\n");
 
     uint32_t bootloader_size = 0;
 
@@ -103,15 +114,6 @@ bool install_system(void)
 
 
     /*
-        Show ISO contents
-    */
-
-    print("Listing ISO...\n");
-
-    iso_list_root();
-
-
-    /*
         Read kernel from ISO
     */
 
@@ -132,8 +134,11 @@ bool install_system(void)
 
 
     /*
-        Install raw kernel
-        Physical sectors 1-38
+        Install raw kernel.
+        
+        Sector 0       = bootloader
+        Sectors 1-38   = raw kernel
+        Sector 39+     = filesystem
     */
 
     print("Installing kernel...\n");
@@ -158,7 +163,7 @@ bool install_system(void)
 
 
     /*
-        Also store KERNEL.BIN
+        Also create KERNEL.BIN
         inside the CustOS filesystem
     */
 
@@ -172,7 +177,7 @@ bool install_system(void)
 
 
     /*
-        Write kernel into filesystem
+        Write kernel to filesystem
     */
 
     if(!fs_write(
@@ -188,7 +193,7 @@ bool install_system(void)
 
 
     /*
-        Save filesystem
+        Save filesystem changes
     */
 
     fs_sync();
