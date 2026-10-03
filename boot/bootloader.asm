@@ -4,24 +4,59 @@ org 0x7C00
 start:
     cli
 
-    mov si, message
+    mov [boot_drive], dl
 
-print:
-    lodsb
-    cmp al, 0
-    je halt
+    mov si, loading_message
+    call print
 
-    mov ah, 0x0E
-    int 0x10
+    ; Load 38 sectors starting at LBA 1
+    mov ah, 0x02
+    mov al, 38
+    mov ch, 0
+    mov cl, 2
+    mov dh, 0
+    mov dl, [boot_drive]
+    mov bx, 0x8000
+    int 0x13
 
-    jmp print
+    jc disk_error
+
+    mov si, loaded_message
+    call print
 
 halt:
     cli
     hlt
     jmp halt
 
-message db "CustOS bootloader working!", 0
+
+disk_error:
+    mov si, error_message
+    call print
+    jmp halt
+
+
+print:
+    lodsb
+
+    cmp al, 0
+    je .done
+
+    mov ah, 0x0E
+    int 0x10
+
+    jmp print
+
+.done:
+    ret
+
+
+boot_drive db 0
+
+loading_message db "Loading kernel...", 13, 10, 0
+loaded_message  db "Kernel loaded!", 13, 10, 0
+error_message   db "Disk read error!", 13, 10, 0
+
 
 times 510 - ($ - $$) db 0
 dw 0xAA55
