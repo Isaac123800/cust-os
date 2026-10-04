@@ -1,3 +1,4 @@
+```asm
 bits 16
 org 0x7C00
 
@@ -6,7 +7,6 @@ start:
 
     mov [boot_drive], dl
 
-    ; Set up real-mode segments
     xor ax, ax
     mov ds, ax
     mov es, ax
@@ -16,7 +16,15 @@ start:
     mov si, loading_message
     call print
 
-    ; Load 38 sectors starting at sector 2
+    ; --------------------------------------------------------
+    ; Load the kernel from sectors 1-38.
+    ;
+    ; BIOS sector numbering starts at 1, so:
+    ; BIOS sector 2 = disk LBA 1.
+    ;
+    ; Load temporarily to 0x8000.
+    ; --------------------------------------------------------
+
     mov ah, 0x02
     mov al, 38
     mov ch, 0
@@ -24,7 +32,6 @@ start:
     mov dh, 0
     mov dl, [boot_drive]
 
-    ; Load kernel into 0x8000
     mov bx, 0x8000
 
     int 0x13
@@ -33,22 +40,38 @@ start:
     mov si, loaded_message
     call print
 
+
+    ; --------------------------------------------------------
     ; Enable A20
+    ; --------------------------------------------------------
+
     in al, 0x92
     or al, 00000010b
+    and al, 11111110b
     out 0x92, al
 
+
+    ; --------------------------------------------------------
     ; Load GDT
+    ; --------------------------------------------------------
+
     lgdt [gdt_descriptor]
 
+
+    ; --------------------------------------------------------
     ; Enter protected mode
+    ; --------------------------------------------------------
+
     mov eax, cr0
     or eax, 1
     mov cr0, eax
 
-    ; Far jump into 32-bit code
     jmp 0x08:protected_mode
 
+
+; ============================================================
+; REAL MODE PRINT
+; ============================================================
 
 print:
     lodsb
@@ -65,6 +88,10 @@ print:
     ret
 
 
+; ============================================================
+; DISK ERROR
+; ============================================================
+
 disk_error:
     mov si, error_message
     call print
@@ -75,72 +102,86 @@ disk_error:
     jmp .hang
 
 
-; --------------------------------
-; Global Descriptor Table
-; --------------------------------
-
-gdt_start:
-
-gdt_null:
-    dq 0
-
-gdt_code:
-    dw 0xFFFF
-    dw 0
-    db 0
-    db 10011010b
-    db 11001111b
-    db 0
-
-gdt_data:
-    dw 0xFFFF
-    dw 0
-    db 0
-    db 10010010b
-    db 11001111b
-    db 0
-
-gdt_end:
-
-gdt_descriptor:
-    dw gdt_end - gdt_start - 1
-    dd gdt_start
-
-
-; --------------------------------
-; Protected mode
-; --------------------------------
+; ============================================================
+; PROTECTED MODE
+; ============================================================
 
 bits 32
 
 protected_mode:
 
-    ; Set data segments
+    ; --------------------------------------------------------
+    ; Flat data segments
+    ; --------------------------------------------------------
+
     mov ax, 0x10
+
     mov ds, ax
     mov es, ax
     mov fs, ax
     mov gs, ax
     mov ss, ax
 
-    ; Kernel stack
     mov esp, 0x90000
 
-    ; Copy kernel:
-    ; 0x8000 -> 0x100000
+    cld
+
+
+    ; --------------------------------------------------------
+    ; Copy kernel
+    ;
+    ; 38 sectors × 512 bytes
+    ; = 19456 bytes
+    ; = 4864 DWORDs
+    ;
+    ; Source:      0x8000
+    ; Destination: 0x100000
+    ; --------------------------------------------------------
 
     mov esi, 0x8000
     mov edi, 0x100000
+    mov ecx, 4864
 
-    ; 19036 / 4 = 4759 DWORDs
-    mov ecx, 4759
-
-    cld
     rep movsd
 
-    ; Jump to kernel entry
+
+    ; --------------------------------------------------------
+    ; Jump to kernel
+    ;
+    ; linker.ld places kernel at 1 MiB.
+    ; --------------------------------------------------------
+
     jmp 0x100000
 
+
+; ============================================================
+; GDT
+; ============================================================
+
+align 8
+
+gdt_start:
+
+    ; Null descriptor
+    dq 0x0000000000000000
+
+    ; 32-bit code segment
+    dq 0x00CF9A000000FFFF
+
+    ; 32-bit data segment
+    dq 0x00CF92000000FFFF
+
+gdt_end:
+
+
+gdt_descriptor:
+    dw gdt_end - gdt_start - 1
+    dd gdt_start
+
+
+; ============================================================
+; DATA
+; ============================================================
 
 boot_drive db 0
 
@@ -149,6 +190,11 @@ loaded_message  db "Kernel loaded!", 13, 10, 0
 error_message   db "Disk read error!", 13, 10, 0
 
 
-times 510 - ($ - $$) db 0
-dw 0xAA55
+; ============================================================
+; BOOT SIGNATURE
+; ============================================================
 
+times 510 - ($ - $$) db 0
+
+dw 0xAA55
+```
