@@ -14,15 +14,25 @@ section .text
 global _start
 
 extern kernel_main
+extern boot_magic
 
 
 _start:
 
     ; --------------------------------------------------------
-    ; K = kernel entry reached
+    ; Prove kernel entry was reached
     ; --------------------------------------------------------
 
     mov word [0xB8000], 0x074B
+
+
+    ; --------------------------------------------------------
+    ; Normal disk boot
+    ;
+    ; Explicitly tell kernel.c that this was NOT Multiboot.
+    ; --------------------------------------------------------
+
+    mov dword [boot_magic], 0
 
 
     ; --------------------------------------------------------
@@ -44,7 +54,7 @@ _start:
 
 
     ; --------------------------------------------------------
-    ; Call C kernel
+    ; Enter C kernel
     ; --------------------------------------------------------
 
     call kernel_main
