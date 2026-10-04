@@ -109,6 +109,7 @@ static bool ata_wait_drq(void)
         if(status & ATA_SR_ERR)
         {
             print("ATA ERROR\n");
+
             print("STATUS ");
             print_hex(status);
             print("\n");
@@ -119,6 +120,7 @@ static bool ata_wait_drq(void)
         if(status & ATA_SR_DF)
         {
             print("ATA DEVICE FAULT\n");
+
             print("STATUS ");
             print_hex(status);
             print("\n");
@@ -254,10 +256,6 @@ bool ata_detect(void)
         return false;
     }
 
-    /*
-        IDENTIFY should provide data.
-    */
-
     status =
         inb(ATA_PRIMARY_STATUS);
 
@@ -286,7 +284,8 @@ bool ata_detect(void)
     );
 
     /*
-        Words 60-61 contain the 28-bit sector count.
+        Words 60-61 contain the
+        28-bit sector count.
     */
 
     total_sectors =
@@ -337,10 +336,14 @@ bool ata_read_sector(
     }
 
     /*
-        Explicitly select primary master.
+        Select primary master using LBA28.
     */
 
     ata_select_drive(lba);
+
+    /*
+        Wait until the drive is ready.
+    */
 
     if(!ata_wait_not_busy())
     {
@@ -383,6 +386,12 @@ bool ata_read_sector(
         ATA_PRIMARY_COMMAND,
         ATA_CMD_READ_SECTORS
     );
+
+    /*
+        400 ns delay.
+    */
+
+    ata_delay();
 
     /*
         Wait for data.
@@ -429,111 +438,19 @@ bool ata_write_sector(
     }
 
     print("ATA WRITE LBA ");
+
     print_hex((uint8_t)lba);
+
     print("\n");
 
     /*
-        Explicitly select primary master.
+        Select primary master using LBA28.
     */
 
     ata_select_drive(lba);
 
-    print("WRITE DEVICE STATUS ");
-
-    uint8_t selected_status =
-        inb(ATA_PRIMARY_STATUS);
-
-    print_hex(selected_status);
-    print("\n");
-
-    if(!ata_wait_not_busy())
-    {
-        return false;
-    }
-
     /*
-        Sector count = 1.
-    */
-
-    outb(
-        ATA_PRIMARY_SECCOUNT0,
-        1
-    );
-
-    /*
-        LBA address.
-    */
-
-    outb(
-        ATA_PRIMARY_LBA0,
-        (uint8_t)lba
-    );
-
-    outb(
-        ATA_PRIMARY_LBA1,
-        (uint8_t)(lba >> 8)
-    );
-
-    outb(
-        ATA_PRIMARY_LBA2,
-        (uint8_t)(lba >> 16)
-    );
-
-    /*
-        WRITE SECTORS.
-    */
-
-    outb(
-        ATA_PRIMARY_COMMAND,
-        ATA_CMD_WRITE_SECTORS
-    );
-
-    /*
-        Wait until the drive requests the data.
-    */
-
-    if(!ata_wait_drq())
-    {
-        return false;
-    }
-
-    /*
-        Send 512 bytes.
-    */
-
-    outsw(
-        ATA_PRIMARY_DATA,
-        buffer,
-        256
-    );
-
-    /*
-        Read status immediately after transfer.
-    */
-
-    uint8_t write_status =
-        inb(ATA_PRIMARY_STATUS);
-
-    print("AFTER WRITE STATUS ");
-
-    print_hex(write_status);
-
-    print("\n");
-
-    if(write_status & ATA_SR_ERR)
-    {
-        print("WRITE ERROR\n");
-        return false;
-    }
-
-    if(write_status & ATA_SR_DF)
-    {
-        print("WRITE DEVICE FAULT\n");
-        return false;
-    }
-
-    /*
-        Wait for the actual write to finish.
+        Wait until the drive is ready.
     */
 
     if(!ata_wait_not_busy())
@@ -542,61 +459,4 @@ bool ata_write_sector(
     }
 
     /*
-        Flush the drive cache.
-    */
 
-    ata_flush();
-
-    /*
-        Check the final status.
-    */
-
-    if(!ata_check_status())
-    {
-        return false;
-    }
-
-    print("ATA WRITE OK\n");
-
-    return true;
-}
-
-
-/*
-    ============================================================
-    FLUSH CACHE
-    ============================================================
-*/
-
-void ata_flush(void)
-{
-    if(!ata_ready)
-    {
-        return;
-    }
-
-    outb(
-        ATA_PRIMARY_COMMAND,
-        ATA_CMD_CACHE_FLUSH
-    );
-
-    if(!ata_wait_not_busy())
-    {
-        print("ATA FLUSH TIMEOUT\n");
-        return;
-    }
-
-    ata_check_status();
-}
-
-
-/*
-    ============================================================
-    SECTOR COUNT
-    ============================================================
-*/
-
-uint32_t ata_sector_count(void)
-{
-    return total_sectors;
-}
