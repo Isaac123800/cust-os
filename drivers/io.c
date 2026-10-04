@@ -2,10 +2,13 @@
 
 
 // ============================================================
-// OUTB
+// OUTPUT BYTE
 // ============================================================
 
-void outb(uint16_t port, uint8_t value)
+void outb(
+    uint16_t port,
+    uint8_t value
+)
 {
     __asm__ volatile (
         "outb %0, %1"
@@ -16,10 +19,12 @@ void outb(uint16_t port, uint8_t value)
 
 
 // ============================================================
-// INB
+// INPUT BYTE
 // ============================================================
 
-uint8_t inb(uint16_t port)
+uint8_t inb(
+    uint16_t port
+)
 {
     uint8_t value;
 
@@ -34,10 +39,13 @@ uint8_t inb(uint16_t port)
 
 
 // ============================================================
-// OUTW
+// OUTPUT WORD
 // ============================================================
 
-void outw(uint16_t port, uint16_t value)
+void outw(
+    uint16_t port,
+    uint16_t value
+)
 {
     __asm__ volatile (
         "outw %0, %1"
@@ -48,10 +56,12 @@ void outw(uint16_t port, uint16_t value)
 
 
 // ============================================================
-// INW
+// INPUT WORD
 // ============================================================
 
-uint16_t inw(uint16_t port)
+uint16_t inw(
+    uint16_t port
+)
 {
     uint16_t value;
 
@@ -66,7 +76,7 @@ uint16_t inw(uint16_t port)
 
 
 // ============================================================
-// INSW
+// INPUT WORD STRING
 // ============================================================
 
 void insw(
@@ -86,7 +96,12 @@ void insw(
 
 
 // ============================================================
-// OUTSW
+// OUTPUT WORD STRING
+//
+// Do not use REP OUTSW here.
+//
+// ATA PIO writes are performed one word at a time with
+// an I/O delay between words.
 // ============================================================
 
 void outsw(
@@ -95,18 +110,23 @@ void outsw(
     uint32_t count
 )
 {
-    __asm__ volatile (
-        "cld\n\t"
-        "rep outsw"
-        : "+S"(buffer), "+c"(count)
-        : "d"(port)
-        : "memory"
-    );
+    const uint16_t *words =
+        (const uint16_t *)buffer;
+
+    for(uint32_t i = 0; i < count; i++)
+    {
+        outw(
+            port,
+            words[i]
+        );
+
+        io_wait();
+    }
 }
 
 
 // ============================================================
-// IO WAIT
+// I/O WAIT
 // ============================================================
 
 void io_wait(void)
