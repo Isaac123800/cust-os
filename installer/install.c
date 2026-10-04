@@ -99,28 +99,43 @@ bool install_system(void)
 
     /*
         --------------------------------------------------------
-        Check bootloader size
+        Verify bootloader size
         --------------------------------------------------------
     */
 
     if(bootloader_size != 512)
     {
         print("Invalid bootloader size\n");
-
-        print("Size: ");
-
-        print_hex(
-            (uint8_t)(bootloader_size >> 8)
-        );
-
-        print_hex(
-            (uint8_t)bootloader_size
-        );
-
-        print("\n");
-
         return false;
     }
+
+
+    /*
+        --------------------------------------------------------
+        IMPORTANT:
+        Verify that the bootloader we read from the ISO
+        actually contains the BIOS boot signature.
+        --------------------------------------------------------
+    */
+
+    print("Checking ISO bootloader: ");
+
+    print_hex(bootloader_buffer[510]);
+    print(" ");
+
+    print_hex(bootloader_buffer[511]);
+
+    print("\n");
+
+
+    if(bootloader_buffer[510] != 0x55 ||
+       bootloader_buffer[511] != 0xAA)
+    {
+        print("ISO BOOTLOADER INVALID\n");
+        return false;
+    }
+
+    print("ISO bootloader verified\n");
 
 
     /*
@@ -167,7 +182,7 @@ bool install_system(void)
 
     uint8_t test_sector[512];
 
-    print("Checking bootloader...\n");
+    print("Checking bootloader on disk...\n");
 
     if(!disk_read(
         0,
@@ -180,11 +195,11 @@ bool install_system(void)
 
     /*
         --------------------------------------------------------
-        Show first four bytes
+        Show what was actually read from sector 0
         --------------------------------------------------------
     */
 
-    print("READBACK: ");
+    print("DISK READBACK: ");
 
     print_hex(test_sector[0]);
     print(" ");
@@ -197,13 +212,6 @@ bool install_system(void)
 
     print_hex(test_sector[3]);
     print(" ... ");
-
-
-    /*
-        --------------------------------------------------------
-        Show boot signature
-        --------------------------------------------------------
-    */
 
     print_hex(test_sector[510]);
     print(" ");
@@ -222,11 +230,11 @@ bool install_system(void)
     if(test_sector[510] == 0x55 &&
        test_sector[511] == 0xAA)
     {
-        print("Bootloader verified!\n");
+        print("Bootloader verified on disk!\n");
     }
     else
     {
-        print("BOOTLOADER VERIFY FAILED\n");
+        print("BOOTLOADER DISK VERIFY FAILED\n");
         return false;
     }
 
@@ -255,7 +263,7 @@ bool install_system(void)
 
     /*
         --------------------------------------------------------
-        Install raw kernel sectors
+        Install raw kernel
         --------------------------------------------------------
     */
 
