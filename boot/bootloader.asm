@@ -5,7 +5,7 @@ start:
     cli
 
     ; --------------------------------------------------------
-    ; Set up real-mode segments first
+    ; Set up real mode
     ; --------------------------------------------------------
 
     xor ax, ax
@@ -18,23 +18,28 @@ start:
 
     mov [boot_drive], dl
 
-    mov si, loading_message
-    call print
 
     ; --------------------------------------------------------
     ; Load kernel
     ;
-    ; 45 sectors
-    ; BIOS sector 2 = LBA 1
-    ; 45 × 512 = 23040 bytes
+    ; Kernel = 23036 bytes
+    ; 45 sectors = 23040 bytes
     ;
-    ; Temporary address: 0x8000
+    ; Disk LBA 1 corresponds to BIOS sector 2.
+    ;
+    ; Temporary destination:
+    ;     0x8000
     ; --------------------------------------------------------
+
+    mov si, loading_message
+    call print
 
     mov ah, 0x02
     mov al, 45
+
     mov ch, 0
     mov cl, 2
+
     mov dh, 0
     mov dl, [boot_drive]
 
@@ -44,15 +49,10 @@ start:
 
     jc disk_error
 
+
     mov si, loaded_message
     call print
 
-    ; --------------------------------------------------------
-    ; REAL MODE MARKER A
-    ; Disk read succeeded.
-    ; --------------------------------------------------------
-
-    call mark_A
 
     ; --------------------------------------------------------
     ; Enable A20
@@ -65,12 +65,6 @@ start:
 
     out 0x92, al
 
-    ; --------------------------------------------------------
-    ; REAL MODE MARKER B
-    ; A20 enabled.
-    ; --------------------------------------------------------
-
-    call mark_B
 
     ; --------------------------------------------------------
     ; Load GDT
@@ -78,44 +72,26 @@ start:
 
     lgdt [gdt_descriptor]
 
-    ; --------------------------------------------------------
-    ; REAL MODE MARKER C
-    ; GDT loaded.
-    ; --------------------------------------------------------
-
-    call mark_C
 
     ; --------------------------------------------------------
-    ; Enter protected mode
+    ; Enable protected mode
     ; --------------------------------------------------------
 
     mov eax, cr0
     or eax, 1
     mov cr0, eax
 
+
     ; --------------------------------------------------------
-    ; REAL MODE MARKER D
-    ; PE bit is now set.
+    ; IMPORTANT:
     ;
-    ; We are still using the old code segment until the
-    ; far jump below.
-    ; --------------------------------------------------------
-
-    call mark_D
-
-    ; --------------------------------------------------------
-    ; Far jump to 32-bit protected-mode code.
+    ; Explicit 32-bit far jump.
     ;
-    ; 66 EA = 32-bit far jump
-    ; DWORD = destination offset
-    ; WORD  = code selector
+    ; Code selector = 0x08
+    ; Destination   = protected_mode
     ; --------------------------------------------------------
 
-    db 0x66
-    db 0xEA
-
-    dd protected_mode
-    dw 0x08
+    jmp dword 0x08:protected_mode
 
 
 ; ============================================================
@@ -134,70 +110,6 @@ print:
     jmp print
 
 .done:
-    ret
-
-
-; ============================================================
-; REAL MODE VGA MARKERS
-; ============================================================
-
-mark_A:
-    push ax
-    push es
-
-    mov ax, 0xB800
-    mov es, ax
-
-    mov word [es:140], 0x0741
-
-    pop es
-    pop ax
-
-    ret
-
-
-mark_B:
-    push ax
-    push es
-
-    mov ax, 0xB800
-    mov es, ax
-
-    mov word [es:142], 0x0742
-
-    pop es
-    pop ax
-
-    ret
-
-
-mark_C:
-    push ax
-    push es
-
-    mov ax, 0xB800
-    mov es, ax
-
-    mov word [es:144], 0x0743
-
-    pop es
-    pop ax
-
-    ret
-
-
-mark_D:
-    push ax
-    push es
-
-    mov ax, 0xB800
-    mov es, ax
-
-    mov word [es:146], 0x0744
-
-    pop es
-    pop ax
-
     ret
 
 
@@ -224,14 +136,6 @@ bits 32
 protected_mode:
 
     ; --------------------------------------------------------
-    ; Marker P
-    ; Protected mode successfully entered.
-    ; --------------------------------------------------------
-
-    mov word [0xB8000], 0x0750
-
-
-    ; --------------------------------------------------------
     ; Set flat data segments
     ; --------------------------------------------------------
 
@@ -243,6 +147,11 @@ protected_mode:
     mov gs, ax
     mov ss, ax
 
+
+    ; --------------------------------------------------------
+    ; Temporary bootloader stack
+    ; --------------------------------------------------------
+
     mov esp, 0x90000
 
     cld
@@ -251,40 +160,34 @@ protected_mode:
     ; --------------------------------------------------------
     ; Copy kernel
     ;
-    ; 45 × 512 = 23040 bytes
-    ; 23040 / 4 = 5760 DWORDs
+    ; Source:
+    ;     0x8000
     ;
-    ; 0x8000 -> 0x100000
+    ; Destination:
+    ;     0x100000
+    ;
+    ; 45 × 512 = 23040 bytes
+    ; 23040 / 4 = 5760 DWORDS
     ; --------------------------------------------------------
 
     mov esi, 0x8000
+
     mov edi, 0x100000
+
     mov ecx, 5760
 
     rep movsd
 
 
     ; --------------------------------------------------------
-    ; Marker C
-    ; Kernel copied.
+    ; Jump to kernel
+    ;
+    ; Use EAX so this is definitely an absolute address.
     ; --------------------------------------------------------
 
-    mov word [0xB8002], 0x0743
+    mov eax, 0x100000
 
-
-    ; --------------------------------------------------------
-    ; Marker J
-    ; About to jump to kernel.
-    ; --------------------------------------------------------
-
-    mov word [0xB8004], 0x074A
-
-
-    ; --------------------------------------------------------
-    ; Jump to kernel entry
-    ; --------------------------------------------------------
-
-    jmp 0x100000
+    jmp eax
 
 
 ; ============================================================
@@ -295,14 +198,28 @@ align 8
 
 gdt_start:
 
+    ; --------------------------------------------------------
     ; Null descriptor
+    ; --------------------------------------------------------
+
     dq 0x0000000000000000
 
+
+    ; --------------------------------------------------------
     ; 32-bit code segment
+    ; Selector = 0x08
+    ; --------------------------------------------------------
+
     dq 0x00CF9A000000FFFF
 
+
+    ; --------------------------------------------------------
     ; 32-bit data segment
+    ; Selector = 0x10
+    ; --------------------------------------------------------
+
     dq 0x00CF92000000FFFF
+
 
 gdt_end:
 
