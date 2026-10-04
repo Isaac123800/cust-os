@@ -3,7 +3,6 @@
 #include "../include/types.h"
 #include "io.h"
 
-
 extern void print(char *text);
 extern void print_hex(uint8_t value);
 
@@ -126,6 +125,9 @@ static bool wait_drq(uint16_t io)
         if (status & ATA_ERR)
             return false;
 
+        if (status & ATA_DF)
+            return false;
+
         if (!(status & ATA_BSY) &&
             (status & ATA_DRQ))
         {
@@ -219,7 +221,7 @@ static uint8_t ide_identify(
     );
 
     // --------------------------------------------------------
-    // Check whether the channel exists
+    // Check whether channel exists
     // --------------------------------------------------------
 
     uint8_t status =
@@ -246,7 +248,7 @@ static uint8_t ide_identify(
         return 0;
 
     // --------------------------------------------------------
-    // Wait for the device
+    // Wait until device is no longer busy
     // --------------------------------------------------------
 
     if (!wait_not_busy(io))
@@ -270,6 +272,70 @@ static uint8_t ide_identify(
     if (mid == 0x14 &&
         high == 0xEB)
     {
+        // ----------------------------------------------------
+        // We found an ATAPI device.
+        //
+        // Issue the proper IDENTIFY PACKET DEVICE command.
+        // ----------------------------------------------------
+
+        outb(
+            io + ATA_DEVICE,
+            device
+        );
+
+        ide_delay();
+
+        outb(
+            io + ATA_SECTOR_COUNT,
+            0
+        );
+
+        outb(
+            io + ATA_LBA_LOW,
+            0
+        );
+
+        outb(
+            io + ATA_LBA_MID,
+            0
+        );
+
+        outb(
+            io + ATA_LBA_HIGH,
+            0
+        );
+
+        outb(
+            io + ATA_COMMAND,
+            ATA_IDENTIFY_PACKET
+        );
+
+        ide_delay();
+
+        if (!wait_not_busy(io))
+            return 0;
+
+        status =
+            inb(io + ATA_STATUS);
+
+        if (status & ATA_ERR)
+            return 0;
+
+        if (!(status & ATA_DRQ))
+            return 0;
+
+        // ----------------------------------------------------
+        // Read the 512-byte identification block.
+        // ----------------------------------------------------
+
+        uint16_t identify_buffer[256];
+
+        insw(
+            io + ATA_DATA,
+            identify_buffer,
+            256
+        );
+
         return 2;
     }
 
@@ -356,9 +422,7 @@ static uint8_t ide_identify(
         return 0;
 
     // --------------------------------------------------------
-    // Read the 512-byte identification block.
-    //
-    // 512 bytes / 2 = 256 words
+    // Read identification block
     // --------------------------------------------------------
 
     uint16_t identify_buffer[256];
@@ -460,6 +524,19 @@ void cdrom_init(void)
     );
 
     // --------------------------------------------------------
+    // Restore Primary Master
+    //
+    // The ATA hard-disk driver uses the Primary Master.
+    // --------------------------------------------------------
+
+    outb(
+        PRIMARY_IO + ATA_DEVICE,
+        0xA0
+    );
+
+    ide_delay();
+
+    // --------------------------------------------------------
     // Final result
     // --------------------------------------------------------
 
@@ -474,6 +551,7 @@ void cdrom_init(void)
 
     print("IDENTIFY COMPLETE\n");
 }
+
 
 // ============================================================
 // READ ONE CD-ROM SECTOR
@@ -493,7 +571,7 @@ bool cdrom_read_sector(
     uint16_t io = cdrom_io;
 
     // --------------------------------------------------------
-    // Select the CD-ROM drive
+    // Select CD-ROM drive
     // --------------------------------------------------------
 
     outb(
@@ -504,7 +582,7 @@ bool cdrom_read_sector(
     ide_delay();
 
     // --------------------------------------------------------
-    // Wait until the drive is ready
+    // Wait until drive is ready
     // --------------------------------------------------------
 
     if (!wait_not_busy(io))
@@ -514,7 +592,7 @@ bool cdrom_read_sector(
     }
 
     // --------------------------------------------------------
-    // Tell the device we want a 2048-byte transfer
+    // Tell device we want a 2048-byte transfer
     // --------------------------------------------------------
 
     outb(
@@ -544,7 +622,7 @@ bool cdrom_read_sector(
     ide_delay();
 
     // --------------------------------------------------------
-    // Wait for the device to request the packet
+    // Wait for packet request
     // --------------------------------------------------------
 
     if (!wait_drq(io))
@@ -568,13 +646,13 @@ bool cdrom_read_sector(
     packet[2] = (uint8_t)(sector >> 24);
     packet[3] = (uint8_t)(sector >> 16);
     packet[4] = (uint8_t)(sector >> 8);
-    packet[5] = (uint8_t)(sector);
+    packet[5] = (uint8_t)sector;
 
     packet[7] = 0;
     packet[8] = 1;
 
     // --------------------------------------------------------
-    // Send the packet
+    // Send packet
     // --------------------------------------------------------
 
     outsw(
@@ -584,7 +662,7 @@ bool cdrom_read_sector(
     );
 
     // --------------------------------------------------------
-    // Wait for the data
+    // Wait for data
     // --------------------------------------------------------
 
     if (!wait_drq(io))
@@ -606,4 +684,3 @@ bool cdrom_read_sector(
 
     return true;
 }
-
