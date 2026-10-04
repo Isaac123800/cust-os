@@ -16,16 +16,21 @@ start:
     call print
 
     ; --------------------------------------------------------
-    ; Load the kernel from sectors 1-38.
+    ; Load the kernel
     ;
-    ; BIOS sector numbering starts at 1, so:
-    ; BIOS sector 2 = disk LBA 1.
+    ; Kernel size:
+    ; 23036 bytes
     ;
-    ; Load temporarily to 0x8000.
+    ; Required sectors:
+    ; 45 × 512 = 23040 bytes
+    ;
+    ; BIOS sector 2 = LBA 1
+    ;
+    ; Load temporarily at 0x8000.
     ; --------------------------------------------------------
 
     mov ah, 0x02
-    mov al, 38
+    mov al, 45
     mov ch, 0
     mov cl, 2
     mov dh, 0
@@ -110,7 +115,7 @@ bits 32
 protected_mode:
 
     ; --------------------------------------------------------
-    ; Flat data segments
+    ; Set up flat 32-bit segments
     ; --------------------------------------------------------
 
     mov ax, 0x10
@@ -129,17 +134,20 @@ protected_mode:
     ; --------------------------------------------------------
     ; Copy kernel
     ;
-    ; 38 sectors × 512 bytes
-    ; = 19456 bytes
-    ; = 4864 DWORDs
+    ; 45 sectors × 512 bytes = 23040 bytes
     ;
-    ; Source:      0x8000
-    ; Destination: 0x100000
+    ; 23040 / 4 = 5760 DWORDs
+    ;
+    ; Source:
+    ;   0x8000
+    ;
+    ; Destination:
+    ;   0x100000
     ; --------------------------------------------------------
 
     mov esi, 0x8000
     mov edi, 0x100000
-    mov ecx, 4864
+    mov ecx, 5760
 
     rep movsd
 
@@ -147,7 +155,7 @@ protected_mode:
     ; --------------------------------------------------------
     ; Jump to kernel
     ;
-    ; linker.ld places kernel at 1 MiB.
+    ; linker.ld places the kernel at 1 MiB.
     ; --------------------------------------------------------
 
     jmp 0x100000
