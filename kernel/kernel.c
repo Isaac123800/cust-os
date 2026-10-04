@@ -927,13 +927,18 @@ static void normal_mode()
 
 void kernel_main(uint32_t magic)
 {
-    if(magic == MULTIBOOT_BOOTLOADER_MAGIC)
+    volatile uint16_t *vga =
+        (volatile uint16_t *)0xB8000;
+
+    vga[0] = 0x0743;  // C
+    vga[1] = 0x0755;  // U
+    vga[2] = 0x0753;  // S
+    vga[3] = 0x074F;  // O
+    vga[4] = 0x0753;  // S
+
+    while(1)
     {
-        installer_mode();
-    }
-    else
-    {
-        normal_mode();
     }
 }
+
 
