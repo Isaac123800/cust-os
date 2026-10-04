@@ -3,16 +3,10 @@ bits 32
 section .bss
 align 16
 
-stack_bottom:
-    resb 16384
-
-stack_top:
-
 
 section .text
 
 global _start
-
 extern kernel_main
 extern boot_magic
 
@@ -20,16 +14,14 @@ extern boot_magic
 _start:
 
     ; --------------------------------------------------------
-    ; Prove kernel entry was reached
+    ; Prove boot.asm was reached
     ; --------------------------------------------------------
 
     mov word [0xB8000], 0x074B
 
 
     ; --------------------------------------------------------
-    ; Normal disk boot
-    ;
-    ; Explicitly tell kernel.c that this was NOT Multiboot.
+    ; Normal disk boot is NOT Multiboot
     ; --------------------------------------------------------
 
     mov dword [boot_magic], 0
@@ -43,21 +35,30 @@ _start:
 
 
     ; --------------------------------------------------------
-    ; Set up kernel stack
+    ; Use a fixed stack.
+    ;
+    ; This is safely below the kernel at 0x100000.
     ; --------------------------------------------------------
 
-    mov esp, stack_top
-
+    mov esp, 0x90000
     and esp, -16
 
     mov ebp, 0
 
 
     ; --------------------------------------------------------
-    ; Enter C kernel
+    ; Prove we reached the C call
     ; --------------------------------------------------------
 
-    call kernel_main
+    mov word [0xB8002], 0x0743
+
+
+    ; --------------------------------------------------------
+    ; Call kernel_main using its absolute linked address.
+    ; --------------------------------------------------------
+
+    mov eax, kernel_main
+    call eax
 
 
 .hang:
