@@ -1,4 +1,3 @@
-```asm
 bits 16
 org 0x7C00
 
@@ -197,4 +196,4 @@ error_message   db "Disk read error!", 13, 10, 0
 times 510 - ($ - $$) db 0
 
 dw 0xAA55
-```
+
