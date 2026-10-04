@@ -427,10 +427,6 @@ void cdrom_init(void)
     cdrom_io = 0;
     cdrom_drive = 0;
 
-    // --------------------------------------------------------
-    // Primary channel
-    // --------------------------------------------------------
-
     check_device(
         PRIMARY_IO,
         0,
@@ -442,10 +438,6 @@ void cdrom_init(void)
         1,
         "Primary Slave"
     );
-
-    // --------------------------------------------------------
-    // Secondary channel
-    // --------------------------------------------------------
 
     check_device(
         SECONDARY_IO,
@@ -459,22 +451,19 @@ void cdrom_init(void)
         "Secondary Slave"
     );
 
-    // --------------------------------------------------------
-    // Final result
-    // --------------------------------------------------------
+    print("\nIDENTIFY COMPLETE\n");
 
-    if (cdrom_io == 0)
-    {
-        print("No ATAPI CD-ROM found\n");
-    }
-    else
-    {
-        print("CD-ROM SELECTED\n");
-    }
+    /*
+        TEMPORARY TEST:
+        Stop here so the device list stays visible.
+    */
 
-    print("IDENTIFY COMPLETE\n");
+    while(1)
+    {
+        __asm__ volatile ("cli");
+        __asm__ volatile ("hlt");
+    }
 }
-
 
 // ============================================================
 // READ ONE CD-ROM SECTOR
