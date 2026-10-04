@@ -4,51 +4,81 @@ org 0x7C00
 start:
     cli
 
-    ; --------------------------------------------------------
-    ; Set up real mode
-    ; --------------------------------------------------------
-
     xor ax, ax
-
     mov ds, ax
     mov es, ax
     mov ss, ax
-
     mov sp, 0x7C00
 
     mov [boot_drive], dl
 
-
     ; --------------------------------------------------------
-    ; Load kernel
-    ;
-    ; Kernel = 23036 bytes
-    ; 45 sectors = 23040 bytes
-    ;
-    ; Disk LBA 1 corresponds to BIOS sector 2.
-    ;
-    ; Temporary destination:
-    ;     0x8000
+    ; Print loading message
     ; --------------------------------------------------------
 
     mov si, loading_message
     call print
 
-    mov ah, 0x02
-    mov al, 45
 
-    mov ch, 0
-    mov cl, 2
+    ; --------------------------------------------------------
+    ; Check BIOS Extended Disk Services
+    ; --------------------------------------------------------
 
-    mov dh, 0
+    mov ah, 0x41
+    mov bx, 0x55AA
     mov dl, [boot_drive]
-
-    mov bx, 0x8000
 
     int 0x13
 
     jc disk_error
 
+    cmp bx, 0xAA55
+    jne disk_error
+
+    test cx, 1
+    jz disk_error
+
+
+    ; --------------------------------------------------------
+    ; Set up Disk Address Packet
+    ;
+    ; Read:
+    ;     45 sectors
+    ;
+    ; Starting at:
+    ;     LBA 1
+    ;
+    ; Destination:
+    ;     0000:8000
+    ; --------------------------------------------------------
+
+    mov word [dap_count], 45
+
+    mov word [dap_offset], 0x8000
+    mov word [dap_segment], 0x0000
+
+    mov dword [dap_lba_low], 1
+    mov dword [dap_lba_high], 0
+
+
+    ; --------------------------------------------------------
+    ; Read using INT 13h Extensions
+    ; AH = 42
+    ; --------------------------------------------------------
+
+    mov si, dap
+
+    mov ah, 0x42
+    mov dl, [boot_drive]
+
+    int 0x13
+
+    jc disk_error
+
+
+    ; --------------------------------------------------------
+    ; Kernel loaded
+    ; --------------------------------------------------------
 
     mov si, loaded_message
     call print
@@ -74,7 +104,7 @@ start:
 
 
     ; --------------------------------------------------------
-    ; Enable protected mode
+    ; Enter protected mode
     ; --------------------------------------------------------
 
     mov eax, cr0
@@ -83,15 +113,14 @@ start:
 
 
     ; --------------------------------------------------------
-    ; IMPORTANT:
-    ;
-    ; Explicit 32-bit far jump.
-    ;
-    ; Code selector = 0x08
-    ; Destination   = protected_mode
+    ; 32-bit far jump
     ; --------------------------------------------------------
 
-    jmp dword 0x08:protected_mode
+    db 0x66
+    db 0xEA
+
+    dd protected_mode
+    dw 0x08
 
 
 ; ============================================================
@@ -118,12 +147,14 @@ print:
 ; ============================================================
 
 disk_error:
+
     mov si, error_message
     call print
 
 .hang:
     cli
     hlt
+
     jmp .hang
 
 
@@ -149,7 +180,7 @@ protected_mode:
 
 
     ; --------------------------------------------------------
-    ; Temporary bootloader stack
+    ; Kernel stack
     ; --------------------------------------------------------
 
     mov esp, 0x90000
@@ -160,18 +191,15 @@ protected_mode:
     ; --------------------------------------------------------
     ; Copy kernel
     ;
-    ; Source:
-    ;     0x8000
-    ;
-    ; Destination:
-    ;     0x100000
-    ;
+    ; 45 sectors
     ; 45 × 512 = 23040 bytes
+    ;
     ; 23040 / 4 = 5760 DWORDS
+    ;
+    ; 0x8000 → 0x100000
     ; --------------------------------------------------------
 
     mov esi, 0x8000
-
     mov edi, 0x100000
 
     mov ecx, 5760
@@ -181,8 +209,6 @@ protected_mode:
 
     ; --------------------------------------------------------
     ; Jump to kernel
-    ;
-    ; Use EAX so this is definitely an absolute address.
     ; --------------------------------------------------------
 
     mov eax, 0x100000
@@ -198,28 +224,14 @@ align 8
 
 gdt_start:
 
-    ; --------------------------------------------------------
-    ; Null descriptor
-    ; --------------------------------------------------------
-
+    ; Null
     dq 0x0000000000000000
 
-
-    ; --------------------------------------------------------
-    ; 32-bit code segment
-    ; Selector = 0x08
-    ; --------------------------------------------------------
-
+    ; 32-bit code
     dq 0x00CF9A000000FFFF
 
-
-    ; --------------------------------------------------------
-    ; 32-bit data segment
-    ; Selector = 0x10
-    ; --------------------------------------------------------
-
+    ; 32-bit data
     dq 0x00CF92000000FFFF
-
 
 gdt_end:
 
@@ -238,6 +250,32 @@ boot_drive db 0
 loading_message db "Loading kernel...", 13, 10, 0
 loaded_message  db "Kernel loaded!", 13, 10, 0
 error_message   db "Disk read error!", 13, 10, 0
+
+
+; ============================================================
+; DISK ADDRESS PACKET
+; ============================================================
+
+align 4
+
+dap:
+    db 0x10
+    db 0
+
+dap_count:
+    dw 45
+
+dap_offset:
+    dw 0x8000
+
+dap_segment:
+    dw 0
+
+dap_lba_low:
+    dd 1
+
+dap_lba_high:
+    dd 0
 
 
 ; ============================================================
