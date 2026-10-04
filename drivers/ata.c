@@ -24,8 +24,8 @@ static void print_hex(uint8_t value)
     char hex[] = "0123456789ABCDEF";
     char out[3];
 
-    out[0] = hex[(value >> 4) & 0xF];
-    out[1] = hex[value & 0xF];
+    out[0] = hex[(value >> 4) & 0x0F];
+    out[1] = hex[value & 0x0F];
     out[2] = 0;
 
     print(out);
@@ -108,10 +108,10 @@ static bool ata_wait_drq(void)
 
         if(status & ATA_SR_ERR)
         {
-            print("ATA ERROR\n");
+            print("ATA ERROR STATUS ");
 
-            print("STATUS ");
             print_hex(status);
+
             print("\n");
 
             return false;
@@ -119,10 +119,10 @@ static bool ata_wait_drq(void)
 
         if(status & ATA_SR_DF)
         {
-            print("ATA DEVICE FAULT\n");
+            print("ATA DEVICE FAULT STATUS ");
 
-            print("STATUS ");
             print_hex(status);
+
             print("\n");
 
             return false;
@@ -143,7 +143,7 @@ static bool ata_wait_drq(void)
 
 /*
     ============================================================
-    CHECK FINAL STATUS
+    CHECK STATUS
     ============================================================
 */
 
@@ -154,10 +154,10 @@ static bool ata_check_status(void)
 
     if(status & ATA_SR_ERR)
     {
-        print("ATA COMMAND ERROR\n");
+        print("ATA COMMAND ERROR STATUS ");
 
-        print("STATUS ");
         print_hex(status);
+
         print("\n");
 
         return false;
@@ -165,10 +165,10 @@ static bool ata_check_status(void)
 
     if(status & ATA_SR_DF)
     {
-        print("ATA DEVICE FAULT\n");
+        print("ATA DEVICE FAULT STATUS ");
 
-        print("STATUS ");
         print_hex(status);
+
         print("\n");
 
         return false;
@@ -180,7 +180,7 @@ static bool ata_check_status(void)
 
 /*
     ============================================================
-    IDENTIFY DRIVE
+    IDENTIFY
     ============================================================
 */
 
@@ -224,7 +224,7 @@ bool ata_detect(void)
     );
 
     /*
-        Send IDENTIFY.
+        IDENTIFY.
     */
 
     outb(
@@ -238,7 +238,9 @@ bool ata_detect(void)
         inb(ATA_PRIMARY_STATUS);
 
     print("ATA STATUS ");
+
     print_hex(status);
+
     print("\n");
 
     if(status == 0)
@@ -246,10 +248,6 @@ bool ata_detect(void)
         print("NO ATA DEVICE\n");
         return false;
     }
-
-    /*
-        Wait until the drive is ready.
-    */
 
     if(!ata_wait_not_busy())
     {
@@ -271,10 +269,6 @@ bool ata_detect(void)
         return false;
     }
 
-    /*
-        Read IDENTIFY data.
-    */
-
     uint16_t buffer[256];
 
     insw(
@@ -295,13 +289,22 @@ bool ata_detect(void)
 
     print("ATA DEVICE OK\n");
 
+    print("ATA SECTORS ");
+
+    print_hex((uint8_t)(total_sectors >> 24));
+    print_hex((uint8_t)(total_sectors >> 16));
+    print_hex((uint8_t)(total_sectors >> 8));
+    print_hex((uint8_t)total_sectors);
+
+    print("\n");
+
     return true;
 }
 
 
 /*
     ============================================================
-    INITIALISE ATA
+    INITIALISE
     ============================================================
 */
 
@@ -335,15 +338,33 @@ bool ata_read_sector(
         return false;
     }
 
+    print("ATA READ LBA ");
+
+    print_hex((uint8_t)(lba >> 24));
+    print_hex((uint8_t)(lba >> 16));
+    print_hex((uint8_t)(lba >> 8));
+    print_hex((uint8_t)lba);
+
+    print("\n");
+
     /*
-        Select primary master using LBA28.
+        Select primary master.
     */
 
     ata_select_drive(lba);
 
     /*
-        Wait until the drive is ready.
+        Show device status immediately
+        after selection.
     */
+
+    print("READ SELECT STATUS ");
+
+    print_hex(
+        inb(ATA_PRIMARY_STATUS)
+    );
+
+    print("\n");
 
     if(!ata_wait_not_busy())
     {
@@ -351,7 +372,7 @@ bool ata_read_sector(
     }
 
     /*
-        Sector count = 1.
+        Program sector count.
     */
 
     outb(
@@ -360,7 +381,7 @@ bool ata_read_sector(
     );
 
     /*
-        LBA address.
+        Program LBA.
     */
 
     outb(
@@ -387,14 +408,10 @@ bool ata_read_sector(
         ATA_CMD_READ_SECTORS
     );
 
-    /*
-        400 ns delay.
-    */
-
     ata_delay();
 
     /*
-        Wait for data.
+        Wait for sector data.
     */
 
     if(!ata_wait_drq())
@@ -403,7 +420,7 @@ bool ata_read_sector(
     }
 
     /*
-        Read 512 bytes = 256 words.
+        Read 512 bytes.
     */
 
     insw(
@@ -413,8 +430,24 @@ bool ata_read_sector(
     );
 
     /*
-        Check final status.
+        Print first four bytes so we can
+        see what was actually returned.
     */
+
+    print("READ DATA ");
+
+    print_hex(buffer[0]);
+    print(" ");
+
+    print_hex(buffer[1]);
+    print(" ");
+
+    print_hex(buffer[2]);
+    print(" ");
+
+    print_hex(buffer[3]);
+
+    print("\n");
 
     return ata_check_status();
 }
@@ -439,18 +472,118 @@ bool ata_write_sector(
 
     print("ATA WRITE LBA ");
 
+    print_hex((uint8_t)(lba >> 24));
+    print_hex((uint8_t)(lba >> 16));
+    print_hex((uint8_t)(lba >> 8));
     print_hex((uint8_t)lba);
 
     print("\n");
 
     /*
-        Select primary master using LBA28.
+        Show the data we are about to write.
+    */
+
+    print("WRITE DATA ");
+
+    print_hex(buffer[0]);
+    print(" ");
+
+    print_hex(buffer[1]);
+    print(" ");
+
+    print_hex(buffer[2]);
+    print(" ");
+
+    print_hex(buffer[3]);
+
+    print(" ... ");
+
+    print_hex(buffer[510]);
+    print(" ");
+
+    print_hex(buffer[511]);
+
+    print("\n");
+
+    /*
+        Select primary master.
     */
 
     ata_select_drive(lba);
 
+    print("WRITE SELECT STATUS ");
+
+    print_hex(
+        inb(ATA_PRIMARY_STATUS)
+    );
+
+    print("\n");
+
+    if(!ata_wait_not_busy())
+    {
+        return false;
+    }
+
     /*
-        Wait until the drive is ready.
+        Program sector count.
+    */
+
+    outb(
+        ATA_PRIMARY_SECCOUNT0,
+        1
+    );
+
+    /*
+        Program LBA.
+    */
+
+    outb(
+        ATA_PRIMARY_LBA0,
+        (uint8_t)lba
+    );
+
+    outb(
+        ATA_PRIMARY_LBA1,
+        (uint8_t)(lba >> 8)
+    );
+
+    outb(
+        ATA_PRIMARY_LBA2,
+        (uint8_t)(lba >> 16)
+    );
+
+    /*
+        WRITE SECTORS.
+    */
+
+    outb(
+        ATA_PRIMARY_COMMAND,
+        ATA_CMD_WRITE_SECTORS
+    );
+
+    ata_delay();
+
+    /*
+        Wait for DRQ.
+    */
+
+    if(!ata_wait_drq())
+    {
+        return false;
+    }
+
+    /*
+        Send 512 bytes.
+    */
+
+    outsw(
+        ATA_PRIMARY_DATA,
+        buffer,
+        256
+    );
+
+    /*
+        Wait until the drive finishes.
     */
 
     if(!ata_wait_not_busy())
@@ -459,4 +592,79 @@ bool ata_write_sector(
     }
 
     /*
+        Show final status.
+    */
+
+    print("WRITE FINAL STATUS ");
+
+    print_hex(
+        inb(ATA_PRIMARY_STATUS)
+    );
+
+    print("\n");
+
+    if(!ata_check_status())
+    {
+        return false;
+    }
+
+    /*
+        Flush write cache.
+    */
+
+    ata_flush();
+
+    print("ATA WRITE OK\n");
+
+    return true;
 }
+
+
+/*
+    ============================================================
+    FLUSH CACHE
+    ============================================================
+*/
+
+void ata_flush(void)
+{
+    if(!ata_ready)
+    {
+        return;
+    }
+
+    print("ATA FLUSH\n");
+
+    outb(
+        ATA_PRIMARY_COMMAND,
+        ATA_CMD_CACHE_FLUSH
+    );
+
+    ata_delay();
+
+    if(!ata_wait_not_busy())
+    {
+        print("ATA FLUSH TIMEOUT\n");
+        return;
+    }
+
+    if(!ata_check_status())
+    {
+        return;
+    }
+
+    print("ATA FLUSH OK\n");
+}
+
+
+/*
+    ============================================================
+    SECTOR COUNT
+    ============================================================
+*/
+
+uint32_t ata_sector_count(void)
+{
+    return total_sectors;
+}
+
