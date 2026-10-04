@@ -23,7 +23,6 @@
 
 #define MULTIBOOT_BOOTLOADER_MAGIC 0x2BADB002
 
-volatile uint32_t boot_magic = 0;
 
 
 // ============================================================
@@ -926,15 +925,15 @@ static void normal_mode()
 // KERNEL ENTRY
 // ============================================================
 
-void kernel_main()
+void kernel_main(uint32_t magic)
 {
-    volatile uint16_t *vga =
-        (volatile uint16_t *)0xB8000;
-
-    vga[0] = 0x074D;   /* M */
-
-    clear();
-
-    print("CustOS kernel booted!\n");
+    if(magic == MULTIBOOT_BOOTLOADER_MAGIC)
+    {
+        installer_mode();
+    }
+    else
+    {
+        normal_mode();
+    }
 }
 
