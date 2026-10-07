@@ -1,19 +1,27 @@
 bits 16
 org 0x7C00
 
+%ifndef KERNEL_SECTORS
+%define KERNEL_SECTORS 45
+%endif
+
+
 start:
     cli
 
     xor ax, ax
+
     mov ds, ax
     mov es, ax
     mov ss, ax
+
     mov sp, 0x7C00
 
     mov [boot_drive], dl
 
+
     ; --------------------------------------------------------
-    ; Print loading message
+    ; Loading message
     ; --------------------------------------------------------
 
     mov si, loading_message
@@ -21,64 +29,30 @@ start:
 
 
     ; --------------------------------------------------------
-    ; Check BIOS Extended Disk Services
+    ; Load installed kernel
+    ;
+    ; Disk LBA 1 = BIOS sector 2.
+    ;
+    ; Kernel is loaded temporarily at 0x8000.
     ; --------------------------------------------------------
 
-    mov ah, 0x41
-    mov bx, 0x55AA
+    mov ah, 0x02
+
+    mov al, KERNEL_SECTORS
+
+    mov ch, 0
+    mov cl, 2
+
+    mov dh, 0
+
     mov dl, [boot_drive]
+
+    mov bx, 0x8000
 
     int 0x13
 
     jc disk_error
 
-    cmp bx, 0xAA55
-    jne disk_error
-
-    test cx, 1
-    jz disk_error
-
-
-    ; --------------------------------------------------------
-    ; Set up Disk Address Packet
-    ;
-    ; Read:
-    ;     45 sectors
-    ;
-    ; Starting at:
-    ;     LBA 1
-    ;
-    ; Destination:
-    ;     0000:8000
-    ; --------------------------------------------------------
-
-    mov word [dap_count], 45
-
-    mov word [dap_offset], 0x8000
-    mov word [dap_segment], 0x0000
-
-    mov dword [dap_lba_low], 1
-    mov dword [dap_lba_high], 0
-
-
-    ; --------------------------------------------------------
-    ; Read using INT 13h Extensions
-    ; AH = 42
-    ; --------------------------------------------------------
-
-    mov si, dap
-
-    mov ah, 0x42
-    mov dl, [boot_drive]
-
-    int 0x13
-
-    jc disk_error
-
-
-    ; --------------------------------------------------------
-    ; Kernel loaded
-    ; --------------------------------------------------------
 
     mov si, loaded_message
     call print
@@ -108,19 +82,17 @@ start:
     ; --------------------------------------------------------
 
     mov eax, cr0
+
     or eax, 1
+
     mov cr0, eax
 
 
     ; --------------------------------------------------------
-    ; 32-bit far jump
+    ; Far jump into 32-bit code
     ; --------------------------------------------------------
 
-    db 0x66
-    db 0xEA
-
-    dd protected_mode
-    dw 0x08
+    jmp dword 0x08:protected_mode
 
 
 ; ============================================================
@@ -131,9 +103,11 @@ print:
     lodsb
 
     cmp al, 0
+
     je .done
 
     mov ah, 0x0E
+
     int 0x10
 
     jmp print
@@ -149,6 +123,7 @@ print:
 disk_error:
 
     mov si, error_message
+
     call print
 
 .hang:
@@ -167,7 +142,7 @@ bits 32
 protected_mode:
 
     ; --------------------------------------------------------
-    ; Set flat data segments
+    ; Flat data segments
     ; --------------------------------------------------------
 
     mov ax, 0x10
@@ -185,30 +160,35 @@ protected_mode:
 
     mov esp, 0x90000
 
+    and esp, -16
+
+    mov ebp, 0
+
     cld
 
 
     ; --------------------------------------------------------
-    ; Copy kernel
+    ; Copy kernel:
     ;
-    ; 45 sectors
-    ; 45 × 512 = 23040 bytes
-    ;
-    ; 23040 / 4 = 5760 DWORDS
+    ; 512 bytes × KERNEL_SECTORS
     ;
     ; 0x8000 → 0x100000
     ; --------------------------------------------------------
 
     mov esi, 0x8000
+
     mov edi, 0x100000
 
-    mov ecx, 5760
+    mov ecx, KERNEL_SECTORS * 128
 
     rep movsd
 
 
     ; --------------------------------------------------------
-    ; Jump to kernel
+    ; IMPORTANT:
+    ;
+    ; kernel_main() is deliberately linked at 0x100000.
+    ; No boot.asm is used.
     ; --------------------------------------------------------
 
     mov eax, 0x100000
@@ -224,7 +204,6 @@ align 8
 
 gdt_start:
 
-    ; Null
     dq 0x0000000000000000
 
     ; 32-bit code
@@ -248,34 +227,10 @@ gdt_descriptor:
 boot_drive db 0
 
 loading_message db "Loading kernel...", 13, 10, 0
-loaded_message  db "Kernel loaded!", 13, 10, 0
-error_message   db "Disk read error!", 13, 10, 0
 
+loaded_message db "Kernel loaded!", 13, 10, 0
 
-; ============================================================
-; DISK ADDRESS PACKET
-; ============================================================
-
-align 4
-
-dap:
-    db 0x10
-    db 0
-
-dap_count:
-    dw 45
-
-dap_offset:
-    dw 0x8000
-
-dap_segment:
-    dw 0
-
-dap_lba_low:
-    dd 1
-
-dap_lba_high:
-    dd 0
+error_message db "Disk read error!", 13, 10, 0
 
 
 ; ============================================================
@@ -285,4 +240,3 @@ dap_lba_high:
 times 510 - ($ - $$) db 0
 
 dw 0xAA55
-
