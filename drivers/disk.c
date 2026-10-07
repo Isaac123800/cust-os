@@ -3,7 +3,6 @@
 #include "ata.h"
 
 
-
 /*
     Initialize disk system
 */
@@ -12,9 +11,6 @@ void disk_init(void)
 {
     ata_init();
 }
-
-
-
 
 
 /*
@@ -35,9 +31,6 @@ bool disk_read(
 }
 
 
-
-
-
 /*
     Write one sector
 
@@ -56,9 +49,6 @@ bool disk_write(
 }
 
 
-
-
-
 /*
     Flush disk cache
 */
@@ -67,9 +57,6 @@ void disk_flush(void)
 {
     ata_flush();
 }
-
-
-
 
 
 /*
@@ -82,3 +69,4 @@ uint32_t disk_sector_count(void)
 {
     return ata_sector_count();
 }
+
