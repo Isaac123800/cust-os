@@ -1,4 +1,4 @@
-ENTRY(_start)
+ENTRY(kernel_main)
 
 SECTIONS
 {
@@ -6,22 +6,23 @@ SECTIONS
 
     .text :
     {
-        *(.multiboot)
-        *(.text)
+        KEEP(*(.text.kernel_main))
+        *(.text*)
     }
 
     .rodata :
     {
-        *(.rodata)
+        *(.rodata*)
     }
 
     .data :
     {
-        *(.data)
+        *(.data*)
     }
 
     .bss :
     {
-        *(.bss)
+        *(COMMON)
+        *(.bss*)
     }
 }
