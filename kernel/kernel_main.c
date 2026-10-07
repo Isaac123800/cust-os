@@ -1,12 +1,12 @@
 // CustOS main kernel
-// This kernel is copied to the installed disk.
+// This kernel is installed to the hard disk.
+// It does not contain the installer or ISO code.
 
 #include <stdbool.h>
 
 #include "include/types.h"
 
 #include "drivers/disk.h"
-
 #include "fs/filesystem.h"
 
 
@@ -46,8 +46,7 @@ void scroll()
 
     for(int x = 0; x < 80; x++)
     {
-        video[(24 * 80 + x) * 2] =
-            ' ';
+        video[(24 * 80 + x) * 2] = ' ';
 
         video[(24 * 80 + x) * 2 + 1] =
             (bg_color << 4) | text_color;
@@ -100,6 +99,29 @@ void print(char *text)
 
 
 // ============================================================
+// PRINT HEX
+// ============================================================
+
+void print_hex(uint8_t value)
+{
+    char hex[] =
+        "0123456789ABCDEF";
+
+    char out[3];
+
+    out[0] =
+        hex[(value >> 4) & 0xF];
+
+    out[1] =
+        hex[value & 0xF];
+
+    out[2] = 0;
+
+    print(out);
+}
+
+
+// ============================================================
 // CLEAR
 // ============================================================
 
@@ -127,8 +149,7 @@ void backspace()
     {
         cursor--;
 
-        video[cursor * 2] =
-            ' ';
+        video[cursor * 2] = ' ';
 
         video[cursor * 2 + 1] =
             (bg_color << 4) | text_color;
@@ -419,6 +440,28 @@ void disable_command(char *name)
 
 
 // ============================================================
+// GET NUMBER
+// ============================================================
+
+int get_number(char *s)
+{
+    int n = 0;
+
+    while(*s >= '0' &&
+          *s <= '9')
+    {
+        n =
+            n * 10 +
+            (*s - '0');
+
+        s++;
+    }
+
+    return n;
+}
+
+
+// ============================================================
 // SHOW COLORS
 // ============================================================
 
@@ -574,122 +617,76 @@ void echo(char *text)
 
 void run_command(char *input)
 {
-    if(equal(
-        input,
-        "credits"))
+    if(equal(input, "credits"))
     {
         if(enabled("credits"))
-        {
             credits();
-        }
     }
 
-    else if(equal(
-        input,
-        "cmdlist"))
+    else if(equal(input, "cmdlist"))
     {
         cmdlist();
     }
 
-    else if(equal(
-        input,
-        "clear"))
+    else if(equal(input, "clear"))
     {
         clear();
     }
 
-    else if(starts(
-        input,
-        "echo "))
+    else if(starts(input, "echo "))
     {
         if(enabled("echo"))
-        {
             echo(input + 5);
-        }
     }
 
-    else if(starts(
-        input,
-        "enable "))
+    else if(starts(input, "enable "))
     {
-        enable_command(
-            input + 7
-        );
+        enable_command(input + 7);
     }
 
-    else if(starts(
-        input,
-        "disable "))
+    else if(starts(input, "disable "))
     {
-        disable_command(
-            input + 8
-        );
+        disable_command(input + 8);
     }
 
-    else if(starts(
-        input,
-        "touch "))
+    else if(starts(input, "touch "))
     {
         if(enabled("touch"))
-        {
             touch(input + 6);
-        }
     }
 
-    else if(starts(
-        input,
-        "write "))
+    else if(starts(input, "write "))
     {
         if(enabled("write"))
-        {
             write_file(input + 6);
-        }
     }
 
-    else if(starts(
-        input,
-        "cat "))
+    else if(starts(input, "cat "))
     {
         if(enabled("cat"))
-        {
             cat(input + 4);
-        }
     }
 
-    else if(equal(
-        input,
-        "ls"))
+    else if(equal(input, "ls"))
     {
         if(enabled("ls"))
-        {
             fs_list();
-        }
     }
 
-    else if(starts(
-        input,
-        "rm "))
+    else if(starts(input, "rm "))
     {
         if(enabled("rm"))
-        {
-            remove_file(
-                input + 3
-            );
-        }
+            remove_file(input + 3);
     }
 
-    else if(equal(
-        input,
-        "color"))
+    else if(equal(input, "color"))
     {
         show_colors();
     }
 
     else
     {
-        print(
-            "\nCommand not found\n"
-        );
+        print("\nCommand not found\n");
     }
 }
 
@@ -753,55 +750,40 @@ void shell()
 
 
 // ============================================================
-// MAIN KERNEL ENTRY
+// KERNEL ENTRY
+//
+// This function is deliberately in its own linker section.
+// The linker places it at exactly 0x100000, where the BIOS
+// bootloader jumps.
 // ============================================================
 
+__attribute__((section(".text.kernel_main")))
 void kernel_main()
 {
     clear();
 
-    print(
-        "CustOS kernel booted!\n"
-    );
+    print("CustOS kernel booted!\n");
+    print("====================\n\n");
 
-    print(
-        "====================\n\n"
-    );
-
-    print(
-        "Initializing disk...\n"
-    );
+    print("Initializing disk...\n");
 
     disk_init();
 
-    print(
-        "Disk ready!\n"
-    );
+    print("Disk ready!\n");
 
-    print(
-        "Mounting filesystem...\n"
-    );
+    print("Mounting filesystem...\n");
 
     if(!fs_mount())
     {
-        print(
-            "Filesystem mount failed!\n"
-        );
+        print("Filesystem mount failed!\n");
 
         while(1)
         {
         }
     }
 
-    print(
-        "Filesystem mounted!\n"
-    );
-
-    print(
-        "Filesystem ready!\n"
-    );
+    print("Filesystem mounted!\n");
+    print("Filesystem ready!\n");
 
     shell();
 }
-
-
