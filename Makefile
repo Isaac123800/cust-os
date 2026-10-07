@@ -6,9 +6,9 @@ AS = nasm
 LD = ld
 OBJCOPY = objcopy
 
-CFLAGS = -m32 -ffreestanding -fno-pie -fno-pic -fno-stack-protector \
-	-fno-asynchronous-unwind-tables -ffunction-sections \
-	-Iinclude -I.
+CFLAGS = -m32 -ffreestanding -fno-pie -fno-pic \
+	-fno-stack-protector -fno-asynchronous-unwind-tables \
+	-ffunction-sections -Iinclude -I.
 
 LDFLAGS = -m elf_i386
 
@@ -16,9 +16,14 @@ LDFLAGS = -m elf_i386
 all:
 	mkdir -p build
 
-	if [ ! -f $(DISK_NAME) ]; then \
-		qemu-img create -f raw $(DISK_NAME) 512M; \
-	fi
+
+	# ========================================================
+	# SHARED CONSOLE
+	# ========================================================
+
+	$(CC) $(CFLAGS) \
+		-c kernel/console.c \
+		-o build/console.o
 
 
 	# ========================================================
@@ -53,6 +58,7 @@ all:
 	$(LD) $(LDFLAGS) \
 		-T linker.ld \
 		build/kernel_main.o \
+		build/console.o \
 		build/io.o \
 		build/ata.o \
 		build/disk.o \
@@ -61,7 +67,7 @@ all:
 
 
 	# --------------------------------------------------------
-	# Convert installed kernel to raw binary
+	# Raw installed kernel
 	# --------------------------------------------------------
 
 	$(OBJCOPY) -O binary \
@@ -70,7 +76,7 @@ all:
 
 
 	# --------------------------------------------------------
-	# Calculate kernel size
+	# Calculate installed kernel size
 	# --------------------------------------------------------
 
 	kernel_size=$$(stat -c %s build/kernel.bin); \
@@ -78,20 +84,21 @@ all:
 	echo "Installed kernel: $$kernel_size bytes"; \
 	echo "Installed kernel: $$kernel_sectors sectors"; \
 	if [ $$kernel_sectors -gt 62 ]; then \
-		echo "ERROR: kernel is too large for current BIOS loader"; \
+		echo "ERROR: kernel exceeds 62 BIOS sectors"; \
 		exit 1; \
 	fi
 
 
 	# --------------------------------------------------------
-	# Build custom BIOS bootloader
-	# Use exact installed kernel size.
+	# Build BIOS bootloader using exact kernel size
 	# --------------------------------------------------------
 
 	kernel_size=$$(stat -c %s build/kernel.bin); \
 	kernel_sectors=$$(( (kernel_size + 511) / 512 )); \
-	$(AS) -dKERNEL_SECTORS=$$kernel_sectors \
-		-f bin boot/bootloader.asm \
+	$(AS) \
+		-dKERNEL_SECTORS=$$kernel_sectors \
+		-f bin \
+		boot/bootloader.asm \
 		-o build/bootloader.bin
 
 
@@ -148,7 +155,7 @@ all:
 
 
 	# --------------------------------------------------------
-	# Installer filesystem / ISO
+	# Installer filesystem
 	# --------------------------------------------------------
 
 	$(CC) $(CFLAGS) \
@@ -168,15 +175,16 @@ all:
 		-T installer_linker.ld \
 		build/multiboot.o \
 		build/kernel_installer.o \
-		build/installer.o \
-		build/install.o \
-		build/grub_install.o \
+		build/console.o \
 		build/io_installer.o \
 		build/ata_installer.o \
 		build/disk_installer.o \
 		build/cdrom.o \
 		build/filesystem_installer.o \
 		build/iso9660.o \
+		build/installer.o \
+		build/install.o \
+		build/grub_install.o \
 		-o build/installer.elf
 
 
@@ -189,35 +197,22 @@ all:
 	mkdir -p iso/boot/grub
 
 
-	# --------------------------------------------------------
 	# Installer kernel
-	# --------------------------------------------------------
-
 	cp build/installer.elf \
 		iso/boot/kernel.bin
 
 
-	# --------------------------------------------------------
-	# Normal kernel
-	# This is what gets copied to the hard disk.
-	# --------------------------------------------------------
-
+	# Normal kernel copied to disk by installer
 	cp build/kernel.bin \
 		iso/KERNEL.BIN
 
 
-	# --------------------------------------------------------
-	# BIOS bootloader
-	# --------------------------------------------------------
-
+	# Custom BIOS bootloader
 	cp build/bootloader.bin \
 		iso/BOOTLOADER.BIN
 
 
-	# --------------------------------------------------------
 	# GRUB configuration
-	# --------------------------------------------------------
-
 	cp grub/grub.cfg \
 		iso/boot/grub/grub.cfg
 
@@ -238,3 +233,4 @@ clean:
 
 
 .PHONY: all clean
+
