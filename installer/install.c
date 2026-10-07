@@ -6,8 +6,7 @@
 #include "../drivers/cdrom.h"
 #include "../drivers/disk.h"
 
-extern void print(char *text);
-extern void print_hex(uint8_t value);
+#include "../include/console.h"
 
 
 /*
@@ -17,6 +16,7 @@ extern void print_hex(uint8_t value);
 */
 
 static uint8_t kernel_buffer[65536];
+
 static uint8_t bootloader_buffer[512];
 
 
@@ -90,11 +90,16 @@ bool install_system(void)
         bootloader_buffer,
         &bootloader_size))
     {
-        print("Could not read bootloader.bin\n");
+        print(
+            "Could not read bootloader.bin\n"
+        );
+
         return false;
     }
 
-    print("Bootloader loaded\n");
+    print(
+        "Bootloader loaded\n"
+    );
 
 
     /*
@@ -105,37 +110,52 @@ bool install_system(void)
 
     if(bootloader_size != 512)
     {
-        print("Invalid bootloader size\n");
+        print(
+            "Invalid bootloader size\n"
+        );
+
         return false;
     }
 
 
     /*
         --------------------------------------------------------
-        IMPORTANT:
-        Verify that the bootloader we read from the ISO
-        actually contains the BIOS boot signature.
+        Verify BIOS boot signature
         --------------------------------------------------------
     */
 
-    print("Checking ISO bootloader: ");
+    print(
+        "Checking ISO bootloader: "
+    );
 
-    print_hex(bootloader_buffer[510]);
+    print_hex(
+        bootloader_buffer[510]
+    );
+
     print(" ");
 
-    print_hex(bootloader_buffer[511]);
+    print_hex(
+        bootloader_buffer[511]
+    );
 
     print("\n");
 
 
-    if(bootloader_buffer[510] != 0x55 ||
-       bootloader_buffer[511] != 0xAA)
+    if(
+        bootloader_buffer[510] != 0x55 ||
+        bootloader_buffer[511] != 0xAA
+    )
     {
-        print("ISO BOOTLOADER INVALID\n");
+        print(
+            "ISO BOOTLOADER INVALID\n"
+        );
+
         return false;
     }
 
-    print("ISO bootloader verified\n");
+    print(
+        "ISO bootloader verified\n"
+    );
 
 
     /*
@@ -144,15 +164,22 @@ bool install_system(void)
         --------------------------------------------------------
     */
 
-    print("Formatting drive...\n");
+    print(
+        "Formatting drive...\n"
+    );
 
     if(!fs_format())
     {
-        print("Format failed\n");
+        print(
+            "Format failed\n"
+        );
+
         return false;
     }
 
-    print("Format complete\n");
+    print(
+        "Format complete\n"
+    );
 
 
     /*
@@ -161,17 +188,24 @@ bool install_system(void)
         --------------------------------------------------------
     */
 
-    print("Installing bootloader...\n");
+    print(
+        "Installing bootloader...\n"
+    );
 
     if(!disk_write(
         0,
         bootloader_buffer))
     {
-        print("Could not install bootloader\n");
+        print(
+            "Could not install bootloader\n"
+        );
+
         return false;
     }
 
-    print("Bootloader installed\n");
+    print(
+        "Bootloader installed\n"
+    );
 
 
     /*
@@ -182,41 +216,65 @@ bool install_system(void)
 
     uint8_t test_sector[512];
 
-    print("Checking bootloader on disk...\n");
+    print(
+        "Checking bootloader on disk...\n"
+    );
 
     if(!disk_read(
         0,
         test_sector))
     {
-        print("Could not read bootloader back\n");
+        print(
+            "Could not read bootloader back\n"
+        );
+
         return false;
     }
 
 
     /*
         --------------------------------------------------------
-        Show what was actually read from sector 0
+        Show actual disk contents
         --------------------------------------------------------
     */
 
-    print("DISK READBACK: ");
+    print(
+        "DISK READBACK: "
+    );
 
-    print_hex(test_sector[0]);
+    print_hex(
+        test_sector[0]
+    );
+
     print(" ");
 
-    print_hex(test_sector[1]);
+    print_hex(
+        test_sector[1]
+    );
+
     print(" ");
 
-    print_hex(test_sector[2]);
+    print_hex(
+        test_sector[2]
+    );
+
     print(" ");
 
-    print_hex(test_sector[3]);
+    print_hex(
+        test_sector[3]
+    );
+
     print(" ... ");
 
-    print_hex(test_sector[510]);
+    print_hex(
+        test_sector[510]
+    );
+
     print(" ");
 
-    print_hex(test_sector[511]);
+    print_hex(
+        test_sector[511]
+    );
 
     print("\n");
 
@@ -227,25 +285,34 @@ bool install_system(void)
         --------------------------------------------------------
     */
 
-    if(test_sector[510] == 0x55 &&
-       test_sector[511] == 0xAA)
+    if(
+        test_sector[510] == 0x55 &&
+        test_sector[511] == 0xAA
+    )
     {
-        print("Bootloader verified on disk!\n");
+        print(
+            "Bootloader verified on disk!\n"
+        );
     }
     else
     {
-        print("BOOTLOADER DISK VERIFY FAILED\n");
+        print(
+            "BOOTLOADER DISK VERIFY FAILED\n"
+        );
+
         return false;
     }
 
 
     /*
         --------------------------------------------------------
-        Read kernel from ISO
+        Read normal CustOS kernel from ISO
         --------------------------------------------------------
     */
 
-    print("\nReading KERNEL.BIN...\n");
+    print(
+        "\nReading KERNEL.BIN...\n"
+    );
 
     uint32_t size = 0;
 
@@ -254,11 +321,16 @@ bool install_system(void)
         kernel_buffer,
         &size))
     {
-        print("Could not read kernel.bin\n");
+        print(
+            "Could not read kernel.bin\n"
+        );
+
         return false;
     }
 
-    print("Kernel loaded\n");
+    print(
+        "Kernel loaded\n"
+    );
 
 
     /*
@@ -267,7 +339,9 @@ bool install_system(void)
         --------------------------------------------------------
     */
 
-    print("Installing kernel...\n");
+    print(
+        "Installing kernel...\n"
+    );
 
     uint32_t kernel_sectors =
         (size + 511) / 512;
@@ -278,14 +352,20 @@ bool install_system(void)
     {
         if(!disk_write(
             1 + i,
-            kernel_buffer + (i * 512)))
+            kernel_buffer +
+            (i * 512)))
         {
-            print("Could not install kernel\n");
+            print(
+                "Could not install kernel\n"
+            );
+
             return false;
         }
     }
 
-    print("Kernel installed\n");
+    print(
+        "Kernel installed\n"
+    );
 
 
     /*
@@ -294,11 +374,17 @@ bool install_system(void)
         --------------------------------------------------------
     */
 
-    print("Creating kernel file...\n");
+    print(
+        "Creating kernel file...\n"
+    );
 
-    if(!fs_create("KERNEL.BIN"))
+    if(!fs_create(
+        "KERNEL.BIN"))
     {
-        print("Create failed\n");
+        print(
+            "Create failed\n"
+        );
+
         return false;
     }
 
@@ -314,11 +400,16 @@ bool install_system(void)
         (char *)kernel_buffer,
         size))
     {
-        print("Write failed\n");
+        print(
+            "Write failed\n"
+        );
+
         return false;
     }
 
-    print("Kernel copied\n");
+    print(
+        "Kernel copied\n"
+    );
 
 
     /*
@@ -336,7 +427,10 @@ bool install_system(void)
         --------------------------------------------------------
     */
 
-    print("\nInstallation complete\n");
+    print(
+        "\nInstallation complete\n"
+    );
 
     return true;
 }
+
