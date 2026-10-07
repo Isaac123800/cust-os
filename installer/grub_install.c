@@ -1,59 +1,33 @@
 #include "grub_install.h"
 
 #include "../drivers/disk.h"
-
-
-extern void print(char *text);
-
+#include "../include/console.h"
 
 
 /*
-    Temporary GRUB installer
+    GRUB installation
 
-    This currently checks that the
-    disk can be written.
+    CustOS currently uses its own BIOS bootloader.
 
-    Real GRUB core image writing
-    will be added after we add
-    ISO file reading.
+    Therefore GRUB must NOT write to the installed
+    disk yet.
+
+    In particular, LBA 1 contains the first sector
+    of the installed CustOS kernel, so writing there
+    would corrupt the kernel.
 */
 
 
 bool install_grub(void)
 {
-    uint8_t buffer[512];
+    print(
+        "GRUB installation is not required.\n"
+    );
 
-
-    print("Installing GRUB...\n");
-
-
-    /*
-        Test writing sector 1.
-
-        Later this will contain:
-        - boot.img
-        - core.img
-    */
-
-
-    for(int i = 0; i < 512; i++)
-    {
-        buffer[i] = 0;
-    }
-
-
-
-    if(!disk_write(1, buffer))
-    {
-        print("GRUB install failed\n");
-
-        return false;
-    }
-
-
-
-    print("GRUB stage written\n");
-
+    print(
+        "Using the CustOS bootloader.\n"
+    );
 
     return true;
 }
+
