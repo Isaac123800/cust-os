@@ -2,7 +2,7 @@ bits 16
 org 0x7C00
 
 %ifndef KERNEL_SECTORS
-%define KERNEL_SECTORS 45
+%define KERNEL_SECTORS 43
 %endif
 
 
@@ -10,7 +10,6 @@ start:
     cli
 
     xor ax, ax
-
     mov ds, ax
     mov es, ax
     mov ss, ax
@@ -29,11 +28,12 @@ start:
 
 
     ; --------------------------------------------------------
-    ; Load installed kernel
+    ; Load KERNEL.BIN
     ;
-    ; Disk LBA 1 = BIOS sector 2.
+    ; LBA 1 = BIOS sector 2
     ;
-    ; Kernel is loaded temporarily at 0x8000.
+    ; Temporary location:
+    ; 0000:8000
     ; --------------------------------------------------------
 
     mov ah, 0x02
@@ -44,7 +44,6 @@ start:
     mov cl, 2
 
     mov dh, 0
-
     mov dl, [boot_drive]
 
     mov bx, 0x8000
@@ -121,7 +120,6 @@ print:
 ; ============================================================
 
 disk_error:
-
     mov si, error_message
 
     call print
@@ -168,11 +166,9 @@ protected_mode:
 
 
     ; --------------------------------------------------------
-    ; Copy kernel:
+    ; Copy kernel to 1 MiB
     ;
-    ; 512 bytes × KERNEL_SECTORS
-    ;
-    ; 0x8000 → 0x100000
+    ; 128 DWORDS = 512 bytes = 1 sector
     ; --------------------------------------------------------
 
     mov esi, 0x8000
@@ -185,10 +181,9 @@ protected_mode:
 
 
     ; --------------------------------------------------------
-    ; IMPORTANT:
+    ; Jump directly to kernel_main()
     ;
-    ; kernel_main() is deliberately linked at 0x100000.
-    ; No boot.asm is used.
+    ; kernel_main is linked at 0x100000.
     ; --------------------------------------------------------
 
     mov eax, 0x100000
@@ -204,12 +199,13 @@ align 8
 
 gdt_start:
 
+    ; Null descriptor
     dq 0x0000000000000000
 
-    ; 32-bit code
+    ; 32-bit code segment
     dq 0x00CF9A000000FFFF
 
-    ; 32-bit data
+    ; 32-bit data segment
     dq 0x00CF92000000FFFF
 
 gdt_end:
@@ -227,10 +223,8 @@ gdt_descriptor:
 boot_drive db 0
 
 loading_message db "Loading kernel...", 13, 10, 0
-
-loaded_message db "Kernel loaded!", 13, 10, 0
-
-error_message db "Disk read error!", 13, 10, 0
+loaded_message  db "Kernel loaded!", 13, 10, 0
+error_message   db "Disk read error!", 13, 10, 0
 
 
 ; ============================================================
@@ -240,3 +234,4 @@ error_message db "Disk read error!", 13, 10, 0
 times 510 - ($ - $$) db 0
 
 dw 0xAA55
+
