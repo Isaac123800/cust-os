@@ -5,156 +5,10 @@
 #include <stdbool.h>
 
 #include "include/types.h"
+#include "include/console.h"
 
 #include "drivers/disk.h"
 #include "fs/filesystem.h"
-
-
-// ============================================================
-// VIDEO
-// ============================================================
-
-#define VIDEO_MEMORY 0xB8000
-
-char *video =
-    (char *)VIDEO_MEMORY;
-
-int cursor = 0;
-
-int text_color = 7;
-
-int bg_color = 0;
-
-
-// ============================================================
-// SCROLL
-// ============================================================
-
-void scroll()
-{
-    for(int y = 1; y < 25; y++)
-    {
-        for(int x = 0; x < 80; x++)
-        {
-            video[((y - 1) * 80 + x) * 2] =
-                video[(y * 80 + x) * 2];
-
-            video[((y - 1) * 80 + x) * 2 + 1] =
-                video[(y * 80 + x) * 2 + 1];
-        }
-    }
-
-    for(int x = 0; x < 80; x++)
-    {
-        video[(24 * 80 + x) * 2] = ' ';
-
-        video[(24 * 80 + x) * 2 + 1] =
-            (bg_color << 4) | text_color;
-    }
-
-    cursor = 24 * 80;
-}
-
-
-// ============================================================
-// PUTCHAR
-// ============================================================
-
-void putchar(char c)
-{
-    if(c == '\n')
-    {
-        cursor =
-            ((cursor / 80) + 1) * 80;
-    }
-    else
-    {
-        video[cursor * 2] = c;
-
-        video[cursor * 2 + 1] =
-            (bg_color << 4) | text_color;
-
-        cursor++;
-    }
-
-    if(cursor >= 80 * 25)
-    {
-        scroll();
-    }
-}
-
-
-// ============================================================
-// PRINT
-// ============================================================
-
-void print(char *text)
-{
-    while(*text)
-    {
-        putchar(*text);
-        text++;
-    }
-}
-
-
-// ============================================================
-// PRINT HEX
-// ============================================================
-
-void print_hex(uint8_t value)
-{
-    char hex[] =
-        "0123456789ABCDEF";
-
-    char out[3];
-
-    out[0] =
-        hex[(value >> 4) & 0xF];
-
-    out[1] =
-        hex[value & 0xF];
-
-    out[2] = 0;
-
-    print(out);
-}
-
-
-// ============================================================
-// CLEAR
-// ============================================================
-
-void clear()
-{
-    for(int i = 0; i < 80 * 25; i++)
-    {
-        video[i * 2] = ' ';
-
-        video[i * 2 + 1] =
-            (bg_color << 4) | text_color;
-    }
-
-    cursor = 0;
-}
-
-
-// ============================================================
-// BACKSPACE
-// ============================================================
-
-void backspace()
-{
-    if(cursor > 0)
-    {
-        cursor--;
-
-        video[cursor * 2] = ' ';
-
-        video[cursor * 2 + 1] =
-            (bg_color << 4) | text_color;
-    }
-}
 
 
 // ============================================================
@@ -308,7 +162,9 @@ bool starts(
 // FIND COMMAND
 // ============================================================
 
-int find_command(char *name)
+int find_command(
+    char *name
+)
 {
     for(int i = 0;
         i < command_count;
@@ -330,7 +186,9 @@ int find_command(char *name)
 // COMMAND ENABLED
 // ============================================================
 
-bool enabled(char *name)
+bool enabled(
+    char *name
+)
 {
     int id =
         find_command(name);
@@ -392,7 +250,9 @@ void cmdlist()
 // ENABLE COMMAND
 // ============================================================
 
-void enable_command(char *name)
+void enable_command(
+    char *name
+)
 {
     int id =
         find_command(name);
@@ -403,7 +263,8 @@ void enable_command(char *name)
         return;
     }
 
-    commands[id].enabled = true;
+    commands[id].enabled =
+        true;
 
     print("\nCommand enabled\n");
 }
@@ -413,7 +274,9 @@ void enable_command(char *name)
 // DISABLE COMMAND
 // ============================================================
 
-void disable_command(char *name)
+void disable_command(
+    char *name
+)
 {
     int id =
         find_command(name);
@@ -433,31 +296,10 @@ void disable_command(char *name)
         return;
     }
 
-    commands[id].enabled = false;
+    commands[id].enabled =
+        false;
 
     print("\nCommand disabled\n");
-}
-
-
-// ============================================================
-// GET NUMBER
-// ============================================================
-
-int get_number(char *s)
-{
-    int n = 0;
-
-    while(*s >= '0' &&
-          *s <= '9')
-    {
-        n =
-            n * 10 +
-            (*s - '0');
-
-        s++;
-    }
-
-    return n;
 }
 
 
@@ -484,7 +326,9 @@ void show_colors()
 // FILESYSTEM COMMANDS
 // ============================================================
 
-void touch(char *name)
+void touch(
+    char *name
+)
 {
     if(fs_create(name))
     {
@@ -501,7 +345,9 @@ void touch(char *name)
 // CAT
 // ============================================================
 
-void cat(char *name)
+void cat(
+    char *name
+)
 {
     char buffer[
         FS_MAX_FILE_SIZE + 1
@@ -525,7 +371,9 @@ void cat(char *name)
 // WRITE FILE
 // ============================================================
 
-void write_file(char *name)
+void write_file(
+    char *name
+)
 {
     char buffer[
         FS_MAX_FILE_SIZE
@@ -587,7 +435,9 @@ void write_file(char *name)
 // REMOVE FILE
 // ============================================================
 
-void remove_file(char *name)
+void remove_file(
+    char *name
+)
 {
     if(fs_delete(name))
     {
@@ -604,7 +454,9 @@ void remove_file(char *name)
 // ECHO
 // ============================================================
 
-void echo(char *text)
+void echo(
+    char *text
+)
 {
     print("\n");
     print(text);
@@ -615,78 +467,128 @@ void echo(char *text)
 // COMMAND PARSER
 // ============================================================
 
-void run_command(char *input)
+void run_command(
+    char *input
+)
 {
-    if(equal(input, "credits"))
+    if(equal(
+        input,
+        "credits"))
     {
         if(enabled("credits"))
+        {
             credits();
+        }
     }
 
-    else if(equal(input, "cmdlist"))
+    else if(equal(
+        input,
+        "cmdlist"))
     {
         cmdlist();
     }
 
-    else if(equal(input, "clear"))
+    else if(equal(
+        input,
+        "clear"))
     {
         clear();
     }
 
-    else if(starts(input, "echo "))
+    else if(starts(
+        input,
+        "echo "))
     {
         if(enabled("echo"))
+        {
             echo(input + 5);
+        }
     }
 
-    else if(starts(input, "enable "))
+    else if(starts(
+        input,
+        "enable "))
     {
-        enable_command(input + 7);
+        enable_command(
+            input + 7
+        );
     }
 
-    else if(starts(input, "disable "))
+    else if(starts(
+        input,
+        "disable "))
     {
-        disable_command(input + 8);
+        disable_command(
+            input + 8
+        );
     }
 
-    else if(starts(input, "touch "))
+    else if(starts(
+        input,
+        "touch "))
     {
         if(enabled("touch"))
+        {
             touch(input + 6);
+        }
     }
 
-    else if(starts(input, "write "))
+    else if(starts(
+        input,
+        "write "))
     {
         if(enabled("write"))
-            write_file(input + 6);
+        {
+            write_file(
+                input + 6
+            );
+        }
     }
 
-    else if(starts(input, "cat "))
+    else if(starts(
+        input,
+        "cat "))
     {
         if(enabled("cat"))
+        {
             cat(input + 4);
+        }
     }
 
-    else if(equal(input, "ls"))
+    else if(equal(
+        input,
+        "ls"))
     {
         if(enabled("ls"))
+        {
             fs_list();
+        }
     }
 
-    else if(starts(input, "rm "))
+    else if(starts(
+        input,
+        "rm "))
     {
         if(enabled("rm"))
-            remove_file(input + 3);
+        {
+            remove_file(
+                input + 3
+            );
+        }
     }
 
-    else if(equal(input, "color"))
+    else if(equal(
+        input,
+        "color"))
     {
         show_colors();
     }
 
     else
     {
-        print("\nCommand not found\n");
+        print(
+            "\nCommand not found\n"
+        );
     }
 }
 
@@ -716,7 +618,9 @@ void shell()
 
                 print("\n");
 
-                run_command(input);
+                run_command(
+                    input
+                );
 
                 break;
             }
@@ -751,10 +655,13 @@ void shell()
 
 // ============================================================
 // KERNEL ENTRY
+// ============================================================
 //
-// This function is deliberately in its own linker section.
-// The linker places it at exactly 0x100000, where the BIOS
-// bootloader jumps.
+// This is the actual installed CustOS kernel.
+//
+// The linker places this function at 0x100000.
+// The BIOS bootloader loads kernel.bin there and
+// jumps directly to it.
 // ============================================================
 
 __attribute__((section(".text.kernel_main")))
@@ -762,28 +669,47 @@ void kernel_main()
 {
     clear();
 
-    print("CustOS kernel booted!\n");
-    print("====================\n\n");
+    print(
+        "CustOS kernel booted!\n"
+    );
 
-    print("Initializing disk...\n");
+    print(
+        "====================\n\n"
+    );
+
+    print(
+        "Initializing disk...\n"
+    );
 
     disk_init();
 
-    print("Disk ready!\n");
+    print(
+        "Disk ready!\n"
+    );
 
-    print("Mounting filesystem...\n");
+    print(
+        "Mounting filesystem...\n"
+    );
 
     if(!fs_mount())
     {
-        print("Filesystem mount failed!\n");
+        print(
+            "Filesystem mount failed!\n"
+        );
 
         while(1)
         {
         }
     }
 
-    print("Filesystem mounted!\n");
-    print("Filesystem ready!\n");
+    print(
+        "Filesystem mounted!\n"
+    );
+
+    print(
+        "Filesystem ready!\n"
+    );
 
     shell();
 }
+
