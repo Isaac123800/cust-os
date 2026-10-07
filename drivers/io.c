@@ -13,7 +13,8 @@ void outb(
     __asm__ volatile (
         "outb %0, %1"
         :
-        : "a"(value), "Nd"(port)
+        : "a"(value),
+          "Nd"(port)
     );
 }
 
@@ -50,7 +51,8 @@ void outw(
     __asm__ volatile (
         "outw %0, %1"
         :
-        : "a"(value), "Nd"(port)
+        : "a"(value),
+          "Nd"(port)
     );
 }
 
@@ -88,7 +90,8 @@ void insw(
     __asm__ volatile (
         "cld\n\t"
         "rep insw"
-        : "+D"(buffer), "+c"(count)
+        : "+D"(buffer),
+          "+c"(count)
         : "d"(port)
         : "memory"
     );
@@ -98,10 +101,8 @@ void insw(
 // ============================================================
 // OUTPUT WORD STRING
 //
-// Do not use REP OUTSW here.
-//
-// ATA PIO writes are performed one word at a time with
-// an I/O delay between words.
+// Words are sent individually rather than using REP OUTSW.
+// This is used by the ATA/ATAPI code.
 // ============================================================
 
 void outsw(
@@ -113,7 +114,9 @@ void outsw(
     const uint16_t *words =
         (const uint16_t *)buffer;
 
-    for(uint32_t i = 0; i < count; i++)
+    for(uint32_t i = 0;
+        i < count;
+        i++)
     {
         outw(
             port,
@@ -137,3 +140,4 @@ void io_wait(void)
         : "a"(0)
     );
 }
+
