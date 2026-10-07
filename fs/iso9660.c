@@ -1,13 +1,20 @@
 #include "iso9660.h"
-#include "../drivers/cdrom.h"
 
-extern void print(char *text);
+#include "../drivers/cdrom.h"
+#include "../include/console.h"
+
 
 #define SECTOR_SIZE 2048
+
+
+// ============================================================
+// ISO9660 DIRECTORY ENTRY
+// ============================================================
 
 typedef struct __attribute__((packed))
 {
     uint8_t length;
+
     uint8_t ext_attr_length;
 
     uint32_t extent;
@@ -31,11 +38,22 @@ typedef struct __attribute__((packed))
 } DirectoryEntry;
 
 
+// ============================================================
+// ISO STATE
+// ============================================================
+
 static uint32_t root_sector = 0;
+
 static uint32_t root_size = 0;
 
 
-static uint32_t read_le32(uint8_t *p)
+// ============================================================
+// READ LITTLE-ENDIAN 32-BIT VALUE
+// ============================================================
+
+static uint32_t read_le32(
+    uint8_t *p
+)
 {
     return ((uint32_t)p[0]) |
            ((uint32_t)p[1] << 8) |
@@ -44,26 +62,53 @@ static uint32_t read_le32(uint8_t *p)
 }
 
 
-static bool equal(char *a, char *b)
+// ============================================================
+// STRING EQUAL
+// ============================================================
+
+static bool equal(
+    char *a,
+    char *b
+)
 {
-    while (*a && *b)
+    while(*a &&
+          *b)
     {
-        if (*a != *b)
+        if(*a != *b)
+        {
             return false;
+        }
 
         a++;
         b++;
     }
 
-    return (*a == 0 && *b == 0);
+    return (
+        *a == 0 &&
+        *b == 0
+    );
 }
 
 
-static void remove_version(char *name)
+// ============================================================
+// REMOVE ISO9660 VERSION
+//
+// Example:
+//
+// KERNEL.BIN;1
+//
+// becomes:
+//
+// KERNEL.BIN
+// ============================================================
+
+static void remove_version(
+    char *name
+)
 {
-    while (*name)
+    while(*name)
     {
-        if (*name == ';')
+        if(*name == ';')
         {
             *name = 0;
             return;
@@ -74,118 +119,237 @@ static void remove_version(char *name)
 }
 
 
-static void copy_name(uint8_t *src, uint8_t len, char *dst)
-{
-    if (len > 127)
-        len = 127;
+// ============================================================
+// COPY ISO NAME
+// ============================================================
 
-    for (uint8_t i = 0; i < len; i++)
-        dst[i] = src[i];
+static void copy_name(
+    uint8_t *src,
+    uint8_t len,
+    char *dst
+)
+{
+    if(len > 127)
+    {
+        len = 127;
+    }
+
+    for(uint8_t i = 0;
+        i < len;
+        i++)
+    {
+        dst[i] =
+            src[i];
+    }
 
     dst[len] = 0;
 }
 
 
+// ============================================================
+// INITIALISE ISO9660
+// ============================================================
+
 void iso_init(void)
 {
-    uint8_t buffer[SECTOR_SIZE];
+    uint8_t buffer[
+        SECTOR_SIZE
+    ];
 
-    print("ISO: Reading PVD\n");
 
-    if (!cdrom_read_sector(16, buffer))
-    {
-        print("ISO: PVD read failed\n");
-        return;
-    }
+    print(
+        "ISO: Reading PVD\n"
+    );
 
-    if (buffer[0] != 1)
-    {
-        print("ISO: Wrong type\n");
-        return;
-    }
-
-    if (buffer[1] != 'C' ||
-        buffer[2] != 'D' ||
-        buffer[3] != '0' ||
-        buffer[4] != '0' ||
-        buffer[5] != '1')
-    {
-        print("ISO: Signature failed\n");
-        return;
-    }
 
     /*
-     * Root directory record starts at byte 156
-     * in the Primary Volume Descriptor.
-     */
+        ISO9660 Primary Volume Descriptor
+        is located at sector 16.
+    */
+
+    if(!cdrom_read_sector(
+        16,
+        buffer))
+    {
+        print(
+            "ISO: PVD read failed\n"
+        );
+
+        return;
+    }
+
+
+    /*
+        PVD type must be 1.
+    */
+
+    if(buffer[0] != 1)
+    {
+        print(
+            "ISO: Wrong type\n"
+        );
+
+        return;
+    }
+
+
+    /*
+        ISO9660 identifier is "CD001".
+    */
+
+    if(buffer[1] != 'C' ||
+       buffer[2] != 'D' ||
+       buffer[3] != '0' ||
+       buffer[4] != '0' ||
+       buffer[5] != '1')
+    {
+        print(
+            "ISO: Signature failed\n"
+        );
+
+        return;
+    }
+
+
+    /*
+        Root directory record starts
+        at byte 156.
+    */
 
     DirectoryEntry *root =
-        (DirectoryEntry *)(buffer + 156);
+        (DirectoryEntry *)
+        (buffer + 156);
 
-    root_sector = read_le32(
-        (uint8_t *)&root->extent
+
+    root_sector =
+        read_le32(
+            (uint8_t *)&root->extent
+        );
+
+
+    root_size =
+        read_le32(
+            (uint8_t *)&root->size
+        );
+
+
+    print(
+        "ISO9660 detected\n"
     );
-
-    root_size = read_le32(
-        (uint8_t *)&root->size
-    );
-
-    print("ISO9660 detected\n");
 }
 
 
+// ============================================================
+// LIST ROOT DIRECTORY
+// ============================================================
+
 void iso_list_root(void)
 {
-    if (root_sector == 0)
-        iso_init();
-
-    if (root_sector == 0)
+    if(root_sector == 0)
     {
-        print("ISO: No root\n");
+        iso_init();
+    }
+
+
+    if(root_sector == 0)
+    {
+        print(
+            "ISO: No root\n"
+        );
+
         return;
     }
 
-    uint8_t buffer[SECTOR_SIZE];
 
-    uint32_t sector = root_sector;
-    uint32_t remaining = root_size;
+    uint8_t buffer[
+        SECTOR_SIZE
+    ];
 
-    print("ROOT DIRECTORY:\n");
 
-    while (remaining > 0)
+    uint32_t sector =
+        root_sector;
+
+    uint32_t remaining =
+        root_size;
+
+
+    print(
+        "ROOT DIRECTORY:\n"
+    );
+
+
+    while(remaining > 0)
     {
-        if (!cdrom_read_sector(sector, buffer))
+        if(!cdrom_read_sector(
+            sector,
+            buffer))
         {
-            print("ISO: directory read failed\n");
+            print(
+                "ISO: directory read failed\n"
+            );
+
             return;
         }
 
+
         uint32_t offset = 0;
 
-        while (offset < SECTOR_SIZE)
+
+        while(offset < SECTOR_SIZE)
         {
             DirectoryEntry *entry =
-                (DirectoryEntry *)(buffer + offset);
+                (DirectoryEntry *)
+                (buffer + offset);
 
-            if (entry->length == 0)
-                break;
 
             /*
-             * Prevent a corrupt directory entry from
-             * causing an infinite loop.
-             */
-            if (entry->length < 34)
-                break;
+                Zero-length entry means
+                the rest of the sector is unused.
+            */
 
-            if (offset + entry->length > SECTOR_SIZE)
+            if(entry->length == 0)
+            {
                 break;
+            }
+
+
+            /*
+                Minimum ISO9660 directory
+                record length.
+            */
+
+            if(entry->length < 34)
+            {
+                break;
+            }
+
+
+            /*
+                Prevent an entry from
+                crossing the sector.
+            */
+
+            if(offset + entry->length >
+               SECTOR_SIZE)
+            {
+                break;
+            }
+
 
             char name[128];
 
-            uint8_t name_length = entry->name_length;
 
-            if (name_length > entry->length - 33)
-                name_length = entry->length - 33;
+            uint8_t name_length =
+                entry->name_length;
+
+
+            if(name_length >
+               entry->length - 33)
+            {
+                name_length =
+                    entry->length - 33;
+            }
+
 
             copy_name(
                 buffer + offset + 33,
@@ -193,33 +357,56 @@ void iso_list_root(void)
                 name
             );
 
+
             remove_version(name);
 
+
             /*
-             * ISO9660 uses 0 for "." and 1 for "..".
-             */
-            if (name_length == 1 &&
-                (name[0] == 0 || name[0] == 1))
+                ISO9660 uses:
+                0 = "."
+                1 = ".."
+            */
+
+            if(name_length == 1 &&
+               (name[0] == 0 ||
+                name[0] == 1))
             {
-                offset += entry->length;
+                offset +=
+                    entry->length;
+
                 continue;
             }
 
+
             print(name);
+
             print("\n");
 
-            offset += entry->length;
+
+            offset +=
+                entry->length;
         }
+
 
         sector++;
 
-        if (remaining >= SECTOR_SIZE)
-            remaining -= SECTOR_SIZE;
+
+        if(remaining >= SECTOR_SIZE)
+        {
+            remaining -=
+                SECTOR_SIZE;
+        }
         else
+        {
             remaining = 0;
+        }
     }
 }
 
+
+// ============================================================
+// READ FILE FROM ISO
+// ============================================================
 
 bool iso_read_file(
     char *wanted,
@@ -227,47 +414,95 @@ bool iso_read_file(
     uint32_t *size
 )
 {
-    if (root_sector == 0)
-        iso_init();
-
-    if (root_sector == 0)
-        return false;
-
-    uint8_t sector_buffer[SECTOR_SIZE];
-
-    uint32_t sector = root_sector;
-    uint32_t remaining = root_size;
-
-    while (remaining > 0)
+    if(wanted == 0 ||
+       buffer == 0 ||
+       size == 0)
     {
-        if (!cdrom_read_sector(sector, sector_buffer))
+        return false;
+    }
+
+
+    if(root_sector == 0)
+    {
+        iso_init();
+    }
+
+
+    if(root_sector == 0)
+    {
+        return false;
+    }
+
+
+    uint8_t sector_buffer[
+        SECTOR_SIZE
+    ];
+
+
+    uint32_t sector =
+        root_sector;
+
+    uint32_t remaining =
+        root_size;
+
+
+    while(remaining > 0)
+    {
+        if(!cdrom_read_sector(
+            sector,
+            sector_buffer))
         {
-            print("ISO: directory sector failed\n");
+            print(
+                "ISO: directory sector failed\n"
+            );
+
             return false;
         }
 
+
         uint32_t offset = 0;
 
-        while (offset < SECTOR_SIZE)
+
+        while(offset < SECTOR_SIZE)
         {
             DirectoryEntry *entry =
-                (DirectoryEntry *)(sector_buffer + offset);
+                (DirectoryEntry *)
+                (sector_buffer + offset);
 
-            if (entry->length == 0)
-                break;
 
-            if (entry->length < 34)
+            if(entry->length == 0)
+            {
                 break;
+            }
 
-            if (offset + entry->length > SECTOR_SIZE)
+
+            if(entry->length < 34)
+            {
                 break;
+            }
+
+
+            if(offset + entry->length >
+               SECTOR_SIZE)
+            {
+                break;
+            }
+
 
             char name[128];
 
-            uint8_t name_length = entry->name_length;
 
-            if (name_length > entry->length - 33)
-                name_length = entry->length - 33;
+            uint8_t name_length =
+                entry->name_length;
+
+
+            if(name_length >
+               entry->length - 33)
+            {
+                name_length =
+                    entry->length - 33;
+            }
+
 
             copy_name(
                 sector_buffer + offset + 33,
@@ -275,70 +510,116 @@ bool iso_read_file(
                 name
             );
 
+
             remove_version(name);
 
-            if (equal(name, wanted))
+
+            if(equal(
+                name,
+                wanted))
             {
                 /*
-                 * Don't try to read directories as files.
-                 */
-                if (entry->flags & 0x02)
+                    Do not try to read
+                    directories as files.
+                */
+
+                if(entry->flags & 0x02)
                 {
-                    print("ISO: Requested path is a directory\n");
+                    print(
+                        "ISO: Requested path is a directory\n"
+                    );
+
                     return false;
                 }
 
-                print("ISO: File found\n");
+
+                print(
+                    "ISO: File found\n"
+                );
+
 
                 uint32_t file_sector =
-                    read_le32((uint8_t *)&entry->extent);
+                    read_le32(
+                        (uint8_t *)&entry->extent
+                    );
+
 
                 uint32_t file_size =
-                    read_le32((uint8_t *)&entry->size);
+                    read_le32(
+                        (uint8_t *)&entry->size
+                    );
 
-                *size = file_size;
+
+                *size =
+                    file_size;
+
 
                 uint32_t count =
-                    (file_size + SECTOR_SIZE - 1) /
+                    (file_size +
+                     SECTOR_SIZE -
+                     1) /
                     SECTOR_SIZE;
+
 
                 uint32_t copied = 0;
 
-                for (uint32_t i = 0; i < count; i++)
+
+                for(uint32_t i = 0;
+                    i < count;
+                    i++)
                 {
-                    if (!cdrom_read_sector(
+                    if(!cdrom_read_sector(
                         file_sector + i,
                         sector_buffer))
                     {
-                        print("ISO: file read failed\n");
+                        print(
+                            "ISO: file read failed\n"
+                        );
+
                         return false;
                     }
 
-                    for (uint32_t x = 0;
-                         x < SECTOR_SIZE &&
-                         copied < file_size;
-                         x++)
+
+                    for(uint32_t x = 0;
+                        x < SECTOR_SIZE &&
+                        copied < file_size;
+                        x++)
                     {
                         buffer[copied++] =
                             sector_buffer[x];
                     }
                 }
 
+
                 return true;
             }
 
-            offset += entry->length;
+
+            offset +=
+                entry->length;
         }
+
 
         sector++;
 
-        if (remaining >= SECTOR_SIZE)
-            remaining -= SECTOR_SIZE;
+
+        if(remaining >= SECTOR_SIZE)
+        {
+            remaining -=
+                SECTOR_SIZE;
+        }
         else
+        {
             remaining = 0;
+        }
     }
 
-    print("ISO: File not found\n");
+
+    print(
+        "ISO: File not found\n"
+    );
+
 
     return false;
 }
+
