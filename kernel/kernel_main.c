@@ -188,6 +188,43 @@ static void restart_system(void)
 
 
 // ============================================================
+// FAKE WINDOWS-STYLE BSOD EASTER EGG
+// ============================================================
+
+static void fake_bsod(void)
+{
+    // White text on a blue background.
+    console_set_color(15, 1);
+    clear();
+
+    print("A problem has been detected in CustOS.\n");
+    print("CustOS has been shut down to prevent damage\n");
+    print("to your computer.\n\n");
+
+    print("WININIT_ERROR\n\n");
+
+    print("If this is the first time you have seen this\n");
+    print("screen, restart CustOS. If this screen appears\n");
+    print("again, follow these steps:\n\n");
+
+    print("Check your system configuration.\n");
+    print("If problems continue, restart your computer.\n\n");
+
+    print("Technical information:\n\n");
+
+    print("*** STOP: CUSTOS_NOT_WINDOWS\n\n");
+
+    print("Press any key to restart CustOS...");
+
+    // Wait for keyboard input.
+    keyboard();
+
+    // Use the existing restart mechanism.
+    restart_system();
+}
+
+
+// ============================================================
 // COMMAND SYSTEM
 // ============================================================
 
@@ -217,11 +254,12 @@ Command commands[] =
     {"rm", true, false},
     {"color", true, false},
     {"shutdown", true, true},
-    {"restart", true, true}
+    {"restart", true, true},
+    {"wininit", true, false}
 };
 
 
-int command_count = 14;
+int command_count = 15;
 
 
 // ============================================================
@@ -500,16 +538,6 @@ static bool parse_color_number(
 // ============================================================
 // SAVE COLOR SETTINGS
 // ============================================================
-//
-// COLOR.CFG contains 10 characters:
-//
-// CSTCOLOR = settings identifier
-// Character 9 = foreground in hexadecimal
-// Character 10 = background from 0 to 7
-//
-// Example: CSTCOLOR E1 means yellow on blue.
-//
-// ============================================================
 
 static bool save_color_settings(
     uint8_t foreground,
@@ -530,15 +558,10 @@ static bool save_color_settings(
     settings[7] = 'R';
 
     settings[8] = hex[foreground];
-
     settings[9] = (char)('0' + background);
 
-    /*
-        On first use, create the file.
-        If it already exists, fs_create may return false;
-        fs_write below is still attempted.
-    */
-
+    // Create the file on first use.
+    // If it already exists, attempt to overwrite it.
     fs_create("COLOR.CFG");
 
     return fs_write(
@@ -555,11 +578,6 @@ static bool save_color_settings(
 
 static void load_color_settings(void)
 {
-    /*
-        fs_read has no destination-capacity argument,
-        so provide the filesystem's maximum file size.
-    */
-
     char settings[FS_MAX_FILE_SIZE + 1];
 
     settings[0] = 0;
@@ -576,8 +594,7 @@ static void load_color_settings(void)
 
     if(!fs_read("COLOR.CFG", settings))
     {
-        // First boot or settings file unavailable.
-        // Keep the default console colours.
+        // No saved settings: use default colours.
         return;
     }
 
@@ -594,7 +611,7 @@ static void load_color_settings(void)
         return;
     }
 
-    // Require exactly ten characters.
+    // The settings file should contain ten bytes.
     if(settings[10] != '\0')
     {
         return;
@@ -614,7 +631,7 @@ static void load_color_settings(void)
         }
     }
 
-    // Decode the background character.
+    // Decode and validate the background character.
     if(settings[9] < '0' ||
        settings[9] > '7')
     {
@@ -946,6 +963,14 @@ void run_command(
         }
     }
 
+    else if(equal(input, "wininit"))
+    {
+        if(enabled("wininit"))
+        {
+            fake_bsod();
+        }
+    }
+
     else
     {
         print("\nCommand not found\n");
@@ -1043,7 +1068,7 @@ void kernel_main()
         }
     }
 
-    // Restore the user's saved colours after mounting.
+    // Restore saved colours after mounting the filesystem.
     load_color_settings();
 
     print("Filesystem mounted!\n");
