@@ -560,7 +560,19 @@ static void load_color_settings(void)
         so provide the filesystem's maximum file size.
     */
 
-    char settings[FS_MAX_FILE_SIZE + 1] = {0};
+    char settings[FS_MAX_FILE_SIZE + 1];
+
+    settings[0] = 0;
+    settings[1] = 0;
+    settings[2] = 0;
+    settings[3] = 0;
+    settings[4] = 0;
+    settings[5] = 0;
+    settings[6] = 0;
+    settings[7] = 0;
+    settings[8] = 0;
+    settings[9] = 0;
+    settings[10] = 0;
 
     if(!fs_read("COLOR.CFG", settings))
     {
