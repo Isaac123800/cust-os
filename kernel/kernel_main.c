@@ -125,15 +125,14 @@ static void shutdown_system(void)
 {
     print("\nShutting down CustOS...\n");
 
-    // Stop CPU interrupts while shutting down.
+    // Disable interrupts before shutting down.
     __asm__ volatile("cli");
 
     // Common QEMU/Bochs-compatible shutdown interfaces.
     outw_to_port(0x604, 0x2000);
     outw_to_port(0xB004, 0x2000);
 
-    // If the emulator does not support shutdown,
-    // stop executing instructions.
+    // Fallback if the emulator does not support shutdown.
     while(1)
     {
         __asm__ volatile("hlt");
@@ -159,8 +158,7 @@ static void restart_system(void)
     // Disable interrupts before resetting.
     __asm__ volatile("cli");
 
-    // Wait briefly for the keyboard controller
-    // input buffer to become available.
+    // Wait briefly for the keyboard controller.
     for(uint32_t i = 0; i < 100000; i++)
     {
         if((inb_from_port(0x64) & 0x02) == 0)
@@ -169,12 +167,10 @@ static void restart_system(void)
         }
     }
 
-    // Request a CPU reset through the keyboard controller.
+    // Request a reset through the keyboard controller.
     outb_to_port(0x64, 0xFE);
 
-    // Fallback if the reset request did not work.
-    // An invalid IDT followed by an exception normally
-    // causes an x86 triple-fault reset.
+    // Fallback: a triple fault normally resets x86.
     struct IDTPointer idtr = {0, 0};
 
     __asm__ volatile(
@@ -184,7 +180,6 @@ static void restart_system(void)
         : "m"(idtr)
     );
 
-    // Should the machine fail to reset, remain halted.
     while(1)
     {
         __asm__ volatile("hlt");
@@ -384,8 +379,7 @@ void enable_command(
         return;
     }
 
-    commands[id].enabled =
-        true;
+    commands[id].enabled = true;
 
     print("\nCommand enabled\n");
 }
@@ -417,8 +411,7 @@ void disable_command(
         return;
     }
 
-    commands[id].enabled =
-        false;
+    commands[id].enabled = false;
 
     print("\nCommand disabled\n");
 }
@@ -486,6 +479,7 @@ static bool parse_color_number(
         uint32_t digit =
             (uint32_t)(**cursor - '0');
 
+        // Check before multiplying to prevent overflow.
         if(digit > maximum ||
            value > (maximum - digit) / 10)
         {
@@ -500,6 +494,133 @@ static bool parse_color_number(
     *result = value;
 
     return true;
+}
+
+
+// ============================================================
+// SAVE COLOR SETTINGS
+// ============================================================
+//
+// COLOR.CFG contains 10 characters:
+//
+// CSTCOLOR = settings identifier
+// Character 9 = foreground in hexadecimal
+// Character 10 = background from 0 to 7
+//
+// Example: CSTCOLOR E1 means yellow on blue.
+//
+// ============================================================
+
+static bool save_color_settings(
+    uint8_t foreground,
+    uint8_t background
+)
+{
+    char hex[] = "0123456789ABCDEF";
+
+    char settings[10];
+
+    settings[0] = 'C';
+    settings[1] = 'S';
+    settings[2] = 'T';
+    settings[3] = 'C';
+    settings[4] = 'O';
+    settings[5] = 'L';
+    settings[6] = 'O';
+    settings[7] = 'R';
+
+    settings[8] = hex[foreground];
+
+    settings[9] = (char)('0' + background);
+
+    /*
+        On first use, create the file.
+        If it already exists, fs_create may return false;
+        fs_write below is still attempted.
+    */
+
+    fs_create("COLOR.CFG");
+
+    return fs_write(
+        "COLOR.CFG",
+        settings,
+        sizeof(settings)
+    );
+}
+
+
+// ============================================================
+// LOAD COLOR SETTINGS
+// ============================================================
+
+static void load_color_settings(void)
+{
+    /*
+        fs_read has no destination-capacity argument,
+        so provide the filesystem's maximum file size.
+    */
+
+    char settings[FS_MAX_FILE_SIZE + 1] = {0};
+
+    if(!fs_read("COLOR.CFG", settings))
+    {
+        // First boot or settings file unavailable.
+        // Keep the default console colours.
+        return;
+    }
+
+    // Check the settings identifier.
+    if(settings[0] != 'C' ||
+       settings[1] != 'S' ||
+       settings[2] != 'T' ||
+       settings[3] != 'C' ||
+       settings[4] != 'O' ||
+       settings[5] != 'L' ||
+       settings[6] != 'O' ||
+       settings[7] != 'R')
+    {
+        return;
+    }
+
+    // Require exactly ten characters.
+    if(settings[10] != '\0')
+    {
+        return;
+    }
+
+    // Decode the foreground hexadecimal character.
+    char hex[] = "0123456789ABCDEF";
+
+    int foreground = -1;
+
+    for(int i = 0; i < 16; i++)
+    {
+        if(settings[8] == hex[i])
+        {
+            foreground = i;
+            break;
+        }
+    }
+
+    // Decode the background character.
+    if(settings[9] < '0' ||
+       settings[9] > '7')
+    {
+        return;
+    }
+
+    uint8_t background =
+        (uint8_t)(settings[9] - '0');
+
+    if(foreground < 0 || foreground > 15)
+    {
+        return;
+    }
+
+    console_set_color(
+        (uint8_t)foreground,
+        background
+    );
 }
 
 
@@ -545,7 +666,16 @@ static void set_color_command(
         (uint8_t)background
     );
 
-    print("\nConsole colours changed.\n");
+    if(save_color_settings(
+            (uint8_t)foreground,
+            (uint8_t)background))
+    {
+        print("\nConsole colours changed and saved.\n");
+    }
+    else
+    {
+        print("\nColours changed, but saving failed.\n");
+    }
 }
 
 
@@ -631,11 +761,9 @@ void write_file(
         }
         else
         {
-            if(pos <
-               FS_MAX_FILE_SIZE - 1)
+            if(pos < FS_MAX_FILE_SIZE - 1)
             {
-                buffer[pos++] =
-                    c;
+                buffer[pos++] = c;
 
                 putchar(c);
             }
@@ -698,9 +826,7 @@ void run_command(
     char *input
 )
 {
-    if(equal(
-        input,
-        "credits"))
+    if(equal(input, "credits"))
     {
         if(enabled("credits"))
         {
@@ -708,23 +834,17 @@ void run_command(
         }
     }
 
-    else if(equal(
-        input,
-        "cmdlist"))
+    else if(equal(input, "cmdlist"))
     {
         cmdlist();
     }
 
-    else if(equal(
-        input,
-        "clear"))
+    else if(equal(input, "clear"))
     {
         clear();
     }
 
-    else if(starts(
-        input,
-        "echo "))
+    else if(starts(input, "echo "))
     {
         if(enabled("echo"))
         {
@@ -732,27 +852,17 @@ void run_command(
         }
     }
 
-    else if(starts(
-        input,
-        "enable "))
+    else if(starts(input, "enable "))
     {
-        enable_command(
-            input + 7
-        );
+        enable_command(input + 7);
     }
 
-    else if(starts(
-        input,
-        "disable "))
+    else if(starts(input, "disable "))
     {
-        disable_command(
-            input + 8
-        );
+        disable_command(input + 8);
     }
 
-    else if(starts(
-        input,
-        "touch "))
+    else if(starts(input, "touch "))
     {
         if(enabled("touch"))
         {
@@ -760,21 +870,15 @@ void run_command(
         }
     }
 
-    else if(starts(
-        input,
-        "write "))
+    else if(starts(input, "write "))
     {
         if(enabled("write"))
         {
-            write_file(
-                input + 6
-            );
+            write_file(input + 6);
         }
     }
 
-    else if(starts(
-        input,
-        "cat "))
+    else if(starts(input, "cat "))
     {
         if(enabled("cat"))
         {
@@ -782,9 +886,7 @@ void run_command(
         }
     }
 
-    else if(equal(
-        input,
-        "ls"))
+    else if(equal(input, "ls"))
     {
         if(enabled("ls"))
         {
@@ -792,33 +894,23 @@ void run_command(
         }
     }
 
-    else if(starts(
-        input,
-        "rm "))
+    else if(starts(input, "rm "))
     {
         if(enabled("rm"))
         {
-            remove_file(
-                input + 3
-            );
+            remove_file(input + 3);
         }
     }
 
-    else if(starts(
-        input,
-        "color "))
+    else if(starts(input, "color "))
     {
         if(enabled("color"))
         {
-            set_color_command(
-                input + 6
-            );
+            set_color_command(input + 6);
         }
     }
 
-    else if(equal(
-        input,
-        "color"))
+    else if(equal(input, "color"))
     {
         if(enabled("color"))
         {
@@ -826,9 +918,7 @@ void run_command(
         }
     }
 
-    else if(equal(
-        input,
-        "shutdown"))
+    else if(equal(input, "shutdown"))
     {
         if(enabled("shutdown"))
         {
@@ -836,9 +926,7 @@ void run_command(
         }
     }
 
-    else if(equal(
-        input,
-        "restart"))
+    else if(equal(input, "restart"))
     {
         if(enabled("restart"))
         {
@@ -848,9 +936,7 @@ void run_command(
 
     else
     {
-        print(
-            "\nCommand not found\n"
-        );
+        print("\nCommand not found\n");
     }
 }
 
@@ -871,8 +957,7 @@ void shell()
 
         while(1)
         {
-            char c =
-                keyboard();
+            char c = keyboard();
 
             if(c == 13)
             {
@@ -880,9 +965,7 @@ void shell()
 
                 print("\n");
 
-                run_command(
-                    input
-                );
+                run_command(input);
 
                 break;
             }
@@ -899,13 +982,11 @@ void shell()
                 continue;
             }
 
-            if(c >= 32 &&
-               c <= 126)
+            if(c >= 32 && c <= 126)
             {
                 if(pos < 127)
                 {
-                    input[pos++] =
-                        c;
+                    input[pos++] = c;
 
                     putchar(c);
                 }
@@ -931,46 +1012,30 @@ void kernel_main()
 {
     clear();
 
-    print(
-        "CustOS kernel booted!\n"
-    );
+    print("CustOS kernel booted!\n");
+    print("====================\n\n");
 
-    print(
-        "====================\n\n"
-    );
-
-    print(
-        "Initializing disk...\n"
-    );
+    print("Initializing disk...\n");
 
     disk_init();
 
-    print(
-        "Disk ready!\n"
-    );
-
-    print(
-        "Mounting filesystem...\n"
-    );
+    print("Disk ready!\n");
+    print("Mounting filesystem...\n");
 
     if(!fs_mount())
     {
-        print(
-            "Filesystem mount failed!\n"
-        );
+        print("Filesystem mount failed!\n");
 
         while(1)
         {
         }
     }
 
-    print(
-        "Filesystem mounted!\n"
-    );
+    // Restore the user's saved colours after mounting.
+    load_color_settings();
 
-    print(
-        "Filesystem ready!\n"
-    );
+    print("Filesystem mounted!\n");
+    print("Filesystem ready!\n");
 
     shell();
 }
