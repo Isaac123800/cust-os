@@ -150,3 +150,41 @@ void backspace(void)
             (bg_color << 4) | text_color;
     }
 }
+
+
+// ============================================================
+// SET CONSOLE COLOURS
+//
+// Foreground: 0-15
+// Background: 0-7
+// ============================================================
+
+void console_set_color(
+    uint8_t foreground,
+    uint8_t background
+)
+{
+    if(foreground > 15 ||
+       background > 7)
+    {
+        return;
+    }
+
+    text_color = foreground;
+    bg_color = background;
+
+    /*
+        Update the attributes of existing screen
+        characters so the whole screen changes colour.
+    */
+
+    uint8_t attribute =
+        (uint8_t)((bg_color << 4) | text_color);
+
+    for(int i = 0; i < 80 * 25; i++)
+    {
+        video[i * 2 + 1] =
+            (char)attribute;
+    }
+}
+
