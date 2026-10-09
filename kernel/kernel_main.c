@@ -74,6 +74,125 @@ char keyboard()
 
 
 // ============================================================
+// PORT I/O HELPERS
+// ============================================================
+
+static uint8_t inb_from_port(uint16_t port)
+{
+    uint8_t value;
+
+    __asm__ volatile(
+        "inb %1, %0"
+        : "=a"(value)
+        : "Nd"(port)
+    );
+
+    return value;
+}
+
+
+static void outb_to_port(
+    uint16_t port,
+    uint8_t value
+)
+{
+    __asm__ volatile(
+        "outb %0, %1"
+        :
+        : "a"(value), "Nd"(port)
+    );
+}
+
+
+static void outw_to_port(
+    uint16_t port,
+    uint16_t value
+)
+{
+    __asm__ volatile(
+        "outw %0, %1"
+        :
+        : "a"(value), "Nd"(port)
+    );
+}
+
+
+// ============================================================
+// SHUTDOWN
+// ============================================================
+
+static void shutdown_system(void)
+{
+    print("\nShutting down CustOS...\n");
+
+    // Stop CPU interrupts while shutting down.
+    __asm__ volatile("cli");
+
+    // Common QEMU/Bochs-compatible shutdown interfaces.
+    outw_to_port(0x604, 0x2000);
+    outw_to_port(0xB004, 0x2000);
+
+    // If the emulator does not support shutdown,
+    // stop executing instructions.
+    while(1)
+    {
+        __asm__ volatile("hlt");
+    }
+}
+
+
+// ============================================================
+// RESTART
+// ============================================================
+
+struct IDTPointer
+{
+    uint16_t limit;
+    uint32_t base;
+} __attribute__((packed));
+
+
+static void restart_system(void)
+{
+    print("\nRestarting CustOS...\n");
+
+    // Disable interrupts before resetting.
+    __asm__ volatile("cli");
+
+    // Wait briefly for the keyboard controller
+    // input buffer to become available.
+    for(uint32_t i = 0; i < 100000; i++)
+    {
+        if((inb_from_port(0x64) & 0x02) == 0)
+        {
+            break;
+        }
+    }
+
+    // Request a CPU reset through the keyboard controller.
+    outb_to_port(0x64, 0xFE);
+
+    // Fallback if the reset request did not work.
+    // An invalid IDT followed by an exception normally
+    // causes an x86 triple-fault reset.
+    struct IDTPointer idtr = {0, 0};
+
+    __asm__ volatile(
+        "lidt %0\n\t"
+        "int $3"
+        :
+        : "m"(idtr)
+    );
+
+    // Should the machine fail to reset, remain halted.
+    while(1)
+    {
+        __asm__ volatile("hlt");
+    }
+}
+
+
+// ============================================================
 // COMMAND SYSTEM
 // ============================================================
 
@@ -101,11 +220,13 @@ Command commands[] =
     {"cat", true, false},
     {"ls", true, false},
     {"rm", true, false},
-    {"color", true, false}
+    {"color", true, false},
+    {"shutdown", true, true},
+    {"restart", true, true}
 };
 
 
-int command_count = 12;
+int command_count = 14;
 
 
 // ============================================================
@@ -364,12 +485,6 @@ static bool parse_color_number(
     {
         uint32_t digit =
             (uint32_t)(**cursor - '0');
-
-        /*
-            Check the limit before multiplying.
-            This also prevents long numbers from
-            overflowing the integer.
-        */
 
         if(digit > maximum ||
            value > (maximum - digit) / 10)
@@ -708,6 +823,26 @@ void run_command(
         if(enabled("color"))
         {
             show_colors();
+        }
+    }
+
+    else if(equal(
+        input,
+        "shutdown"))
+    {
+        if(enabled("shutdown"))
+        {
+            shutdown_system();
+        }
+    }
+
+    else if(equal(
+        input,
+        "restart"))
+    {
+        if(enabled("restart"))
+        {
+            restart_system();
         }
     }
 
