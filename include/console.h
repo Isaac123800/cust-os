@@ -15,5 +15,11 @@ void clear(void);
 
 void backspace(void);
 
+/* Set foreground and background colours. */
+void console_set_color(
+    uint8_t foreground,
+    uint8_t background
+);
+
 #endif
 
