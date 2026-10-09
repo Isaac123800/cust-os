@@ -127,84 +127,52 @@ static const Translation translations[] =
         "\nCouleurs du texte (0-15) :\n"
     },
     {
-        "0 Black\n",
-        "0 Czarny\n",
-        "0 Noir\n"
+        "0 Black\n", "0 Czarny\n", "0 Noir\n"
     },
     {
-        "1 Blue\n",
-        "1 Niebieski\n",
-        "1 Bleu\n"
+        "1 Blue\n", "1 Niebieski\n", "1 Bleu\n"
     },
     {
-        "2 Green\n",
-        "2 Zielony\n",
-        "2 Vert\n"
+        "2 Green\n", "2 Zielony\n", "2 Vert\n"
     },
     {
-        "3 Cyan\n",
-        "3 Turkusowy\n",
-        "3 Cyan\n"
+        "3 Cyan\n", "3 Turkusowy\n", "3 Cyan\n"
     },
     {
-        "4 Red\n",
-        "4 Czerwony\n",
-        "4 Rouge\n"
+        "4 Red\n", "4 Czerwony\n", "4 Rouge\n"
     },
     {
-        "5 Magenta\n",
-        "5 Magenta\n",
-        "5 Magenta\n"
+        "5 Magenta\n", "5 Magenta\n", "5 Magenta\n"
     },
     {
-        "6 Brown\n",
-        "6 Brazowy\n",
-        "6 Marron\n"
+        "6 Brown\n", "6 Brazowy\n", "6 Marron\n"
     },
     {
-        "7 Light grey\n",
-        "7 Jasnoszary\n",
-        "7 Gris clair\n"
+        "7 Light grey\n", "7 Jasnoszary\n", "7 Gris clair\n"
     },
     {
-        "8 Dark grey\n",
-        "8 Ciemnoszary\n",
-        "8 Gris fonce\n"
+        "8 Dark grey\n", "8 Ciemnoszary\n", "8 Gris fonce\n"
     },
     {
-        "9 Light blue\n",
-        "9 Jasnoniebieski\n",
-        "9 Bleu clair\n"
+        "9 Light blue\n", "9 Jasnoniebieski\n", "9 Bleu clair\n"
     },
     {
-        "10 Light green\n",
-        "10 Jasnozielony\n",
-        "10 Vert clair\n"
+        "10 Light green\n", "10 Jasnozielony\n", "10 Vert clair\n"
     },
     {
-        "11 Light cyan\n",
-        "11 Jasnoturkusowy\n",
-        "11 Cyan clair\n"
+        "11 Light cyan\n", "11 Jasnoturkusowy\n", "11 Cyan clair\n"
     },
     {
-        "12 Light red\n",
-        "12 Jasnoczerwony\n",
-        "12 Rouge clair\n"
+        "12 Light red\n", "12 Jasnoczerwony\n", "12 Rouge clair\n"
     },
     {
-        "13 Light magenta\n",
-        "13 Jasna magenta\n",
-        "13 Magenta clair\n"
+        "13 Light magenta\n", "13 Jasna magenta\n", "13 Magenta clair\n"
     },
     {
-        "14 Yellow\n",
-        "14 Zolty\n",
-        "14 Jaune\n"
+        "14 Yellow\n", "14 Zolty\n", "14 Jaune\n"
     },
     {
-        "15 White\n",
-        "15 Bialy\n",
-        "15 Blanc\n"
+        "15 White\n", "15 Bialy\n", "15 Blanc\n"
     },
     {
         "\nBackground colours: 0-7\n",
@@ -311,6 +279,23 @@ static const Translation translations[] =
         "\nLangue modifiee, mais echec de l'enregistrement.\n"
     },
 
+    // Version information
+    {
+        "\nCustOS version 0.1\n",
+        "\nWersja CustOS 0.1\n",
+        "\nVersion de CustOS 0.1\n"
+    },
+    {
+        "Architecture: x86 32-bit\n",
+        "Architektura: x86 32-bit\n",
+        "Architecture : x86 32 bits\n"
+    },
+    {
+        "Build: Development\n",
+        "Kompilacja: rozwojowa\n",
+        "Version : developpement\n"
+    },
+
     // Fake Windows-style BSOD
     {
         "A problem has been detected in CustOS.\n",
@@ -410,7 +395,7 @@ static void print_localized(char *text)
 }
 
 
-// This affects print() calls in this source file only.
+// Translate messages printed in this source file only.
 #define print(text) print_localized(text)
 
 
@@ -610,7 +595,7 @@ static void fake_bsod(void)
 
     print("Technical information:\n\n");
 
-    // Keep the custom stop code unchanged in every language.
+    // Preserve the custom stop code in every language.
     console_print_raw("*** STOP: CUSTOS_NOT_WINDOWS\n\n");
 
     print("Press any key to restart CustOS...");
@@ -653,11 +638,12 @@ Command commands[] =
     {"shutdown", true, true},
     {"restart", true, true},
     {"wininit", true, false},
-    {"lang", true, true}
+    {"lang", true, true},
+    {"ver", true, false}
 };
 
 
-int command_count = 16;
+int command_count = 17;
 
 
 // ============================================================
@@ -789,13 +775,11 @@ static void show_language(void)
 
 static void set_language_command(char *args)
 {
-    // Remove leading spaces.
     while(*args == ' ')
     {
         args++;
     }
 
-    // Remove trailing spaces.
     int length = 0;
 
     while(args[length])
@@ -877,6 +861,18 @@ bool enabled(
     }
 
     return commands[id].enabled;
+}
+
+
+// ============================================================
+// VERSION INFORMATION
+// ============================================================
+
+static void show_version(void)
+{
+    print("\nCustOS version 0.1\n");
+    print("Architecture: x86 32-bit\n");
+    print("Build: Development\n");
 }
 
 
@@ -1037,7 +1033,6 @@ static bool parse_color_number(
         uint32_t digit =
             (uint32_t)(**cursor - '0');
 
-        // Check before multiplying to prevent overflow.
         if(digit > maximum ||
            value > (maximum - digit) / 10)
         {
@@ -1382,6 +1377,14 @@ void run_command(
     else if(equal(input, "cmdlist"))
     {
         cmdlist();
+    }
+
+    else if(equal(input, "ver"))
+    {
+        if(enabled("ver"))
+        {
+            show_version();
+        }
     }
 
     else if(equal(input, "clear"))
