@@ -309,16 +309,128 @@ void disable_command(
 
 void show_colors()
 {
-    print("\nColors:\n");
+    print("\nForeground colours (0-15):\n");
 
     print("0 Black\n");
-    print("1 Red\n");
+    print("1 Blue\n");
     print("2 Green\n");
-    print("3 Yellow\n");
-    print("4 Blue\n");
+    print("3 Cyan\n");
+    print("4 Red\n");
     print("5 Magenta\n");
-    print("6 Cyan\n");
-    print("7 White\n");
+    print("6 Brown\n");
+    print("7 Light grey\n");
+    print("8 Dark grey\n");
+    print("9 Light blue\n");
+    print("10 Light green\n");
+    print("11 Light cyan\n");
+    print("12 Light red\n");
+    print("13 Light magenta\n");
+    print("14 Yellow\n");
+    print("15 White\n");
+
+    print("\nBackground colours: 0-7\n");
+
+    print("Usage: color <foreground> <background>\n");
+
+    print("Example: color 15 0\n");
+}
+
+
+// ============================================================
+// PARSE A COLOR NUMBER
+// ============================================================
+
+static bool parse_color_number(
+    char **cursor,
+    uint32_t maximum,
+    uint32_t *result
+)
+{
+    while(**cursor == ' ')
+    {
+        (*cursor)++;
+    }
+
+    if(**cursor < '0' ||
+       **cursor > '9')
+    {
+        return false;
+    }
+
+    uint32_t value = 0;
+
+    while(**cursor >= '0' &&
+          **cursor <= '9')
+    {
+        uint32_t digit =
+            (uint32_t)(**cursor - '0');
+
+        /*
+            Check the limit before multiplying.
+            This also prevents long numbers from
+            overflowing the integer.
+        */
+
+        if(digit > maximum ||
+           value > (maximum - digit) / 10)
+        {
+            return false;
+        }
+
+        value = value * 10 + digit;
+
+        (*cursor)++;
+    }
+
+    *result = value;
+
+    return true;
+}
+
+
+// ============================================================
+// SET CONSOLE COLOURS
+// ============================================================
+
+static void set_color_command(
+    char *args
+)
+{
+    uint32_t foreground;
+    uint32_t background;
+
+    if(!parse_color_number(
+            &args, 15, &foreground) ||
+       !parse_color_number(
+            &args, 7, &background))
+    {
+        print(
+            "\nUsage: color <foreground 0-15> <background 0-7>\n"
+        );
+
+        return;
+    }
+
+    while(*args == ' ')
+    {
+        args++;
+    }
+
+    if(*args != '\0')
+    {
+        print(
+            "\nUsage: color <foreground 0-15> <background 0-7>\n"
+        );
+
+        return;
+    }
+
+    console_set_color(
+        (uint8_t)foreground,
+        (uint8_t)background
+    );
+
+    print("\nConsole colours changed.\n");
 }
 
 
@@ -577,11 +689,26 @@ void run_command(
         }
     }
 
+    else if(starts(
+        input,
+        "color "))
+    {
+        if(enabled("color"))
+        {
+            set_color_command(
+                input + 6
+            );
+        }
+    }
+
     else if(equal(
         input,
         "color"))
     {
-        show_colors();
+        if(enabled("color"))
+        {
+            show_colors();
+        }
     }
 
     else
