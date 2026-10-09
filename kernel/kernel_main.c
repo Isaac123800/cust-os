@@ -12,6 +12,326 @@
 
 
 // ============================================================
+// LANGUAGE SYSTEM
+// ============================================================
+
+static bool polish_language = false;
+
+typedef struct
+{
+    const char *english;
+    const char *polish;
+} Translation;
+
+
+// Call the original console printer without translation.
+static void console_print_raw(char *text)
+{
+    print(text);
+}
+
+
+static bool same_message(
+    const char *a,
+    const char *b
+)
+{
+    while(*a && *b)
+    {
+        if(*a != *b)
+        {
+            return false;
+        }
+
+        a++;
+        b++;
+    }
+
+    return *a == *b;
+}
+
+
+static const Translation translations[] =
+{
+    // Shutdown and restart
+    {
+        "\nShutting down CustOS...\n",
+        "\nZamykanie CustOS...\n"
+    },
+    {
+        "\nRestarting CustOS...\n",
+        "\nPonowne uruchamianie CustOS...\n"
+    },
+
+    // Credits and command list
+    {
+        "\nMade By:\n",
+        "\nAutorzy:\n"
+    },
+    {
+        "\nCommands:\n",
+        "\nPolecenia:\n"
+    },
+    {
+        " Protected\n",
+        " Chronione\n"
+    },
+    {
+        " Enabled\n",
+        " Wlaczone\n"
+    },
+    {
+        " Disabled\n",
+        " Wylaczone\n"
+    },
+
+    // General command messages
+    {
+        "\nCommand not found\n",
+        "\nNie znaleziono polecenia\n"
+    },
+    {
+        "\nCommand enabled\n",
+        "\nPolecenie wlaczone\n"
+    },
+    {
+        "\nCannot disable protected command\n",
+        "\nNie mozna wylaczyc chronionego polecenia\n"
+    },
+    {
+        "\nCommand disabled\n",
+        "\nPolecenie wylaczone\n"
+    },
+
+    // Colour command
+    {
+        "\nForeground colours (0-15):\n",
+        "\nKolory tekstu (0-15):\n"
+    },
+    {
+        "0 Black\n",
+        "0 Czarny\n"
+    },
+    {
+        "1 Blue\n",
+        "1 Niebieski\n"
+    },
+    {
+        "2 Green\n",
+        "2 Zielony\n"
+    },
+    {
+        "3 Cyan\n",
+        "3 Turkusowy\n"
+    },
+    {
+        "4 Red\n",
+        "4 Czerwony\n"
+    },
+    {
+        "5 Magenta\n",
+        "5 Magenta\n"
+    },
+    {
+        "6 Brown\n",
+        "6 Brazowy\n"
+    },
+    {
+        "7 Light grey\n",
+        "7 Jasnoszary\n"
+    },
+    {
+        "8 Dark grey\n",
+        "8 Ciemnoszary\n"
+    },
+    {
+        "9 Light blue\n",
+        "9 Jasnoniebieski\n"
+    },
+    {
+        "10 Light green\n",
+        "10 Jasnozielony\n"
+    },
+    {
+        "11 Light cyan\n",
+        "11 Jasnoturkusowy\n"
+    },
+    {
+        "12 Light red\n",
+        "12 Jasnoczerwony\n"
+    },
+    {
+        "13 Light magenta\n",
+        "13 Jasna magenta\n"
+    },
+    {
+        "14 Yellow\n",
+        "14 Zolty\n"
+    },
+    {
+        "15 White\n",
+        "15 Bialy\n"
+    },
+    {
+        "\nBackground colours: 0-7\n",
+        "\nKolory tla: 0-7\n"
+    },
+    {
+        "Usage: color <foreground> <background>\n",
+        "Uzycie: color <tekst> <tlo>\n"
+    },
+    {
+        "Example: color 15 0\n",
+        "Przyklad: color 15 0\n"
+    },
+    {
+        "\nUsage: color <foreground 0-15> <background 0-7>\n",
+        "\nUzycie: color <tekst 0-15> <tlo 0-7>\n"
+    },
+    {
+        "\nConsole colours changed and saved.\n",
+        "\nKolory konsoli zmienione i zapisane.\n"
+    },
+    {
+        "\nColours changed, but saving failed.\n",
+        "\nKolory zmienione, ale zapis sie nie powiodl.\n"
+    },
+
+    // Filesystem messages
+    {
+        "\nFile created\n",
+        "\nPlik utworzony\n"
+    },
+    {
+        "\nCould not create file\n",
+        "\nNie mozna utworzyc pliku\n"
+    },
+    {
+        "\nFile not found\n",
+        "\nNie znaleziono pliku\n"
+    },
+    {
+        "\nEnter text:\n",
+        "\nWpisz tekst:\n"
+    },
+    {
+        "\nSaved\n",
+        "\nZapisano\n"
+    },
+    {
+        "\nWrite failed\n",
+        "\nBlad zapisu\n"
+    },
+    {
+        "\nDeleted\n",
+        "\nUsunieto\n"
+    },
+
+    // Language command
+    {
+        "Language: English\n",
+        "Jezyk: angielski\n"
+    },
+    {
+        "Language: Polish\n",
+        "Jezyk: polski\n"
+    },
+    {
+        "Usage: lang en | lang pl\n",
+        "Uzycie: lang en | lang pl\n"
+    },
+    {
+        "Unknown language. Use en or pl.\n",
+        "Nieznany jezyk. Uzyj en lub pl.\n"
+    },
+    {
+        "\nLanguage changed and saved.\n",
+        "\nJezyk zmieniony i zapisany.\n"
+    },
+    {
+        "\nLanguage changed, but saving failed.\n",
+        "\nJezyk zmieniony, ale zapis sie nie powiodl.\n"
+    },
+
+    // Fake Windows-style BSOD
+    {
+        "A problem has been detected in CustOS.\n",
+        "W systemie CustOS wykryto problem.\n"
+    },
+    {
+        "CustOS has been shut down to prevent damage\n",
+        "CustOS zostal zatrzymany, aby zapobiec\n"
+    },
+    {
+        "to your computer.\n\n",
+        "uszkodzeniu komputera.\n\n"
+    },
+    {
+        "WININIT_ERROR\n\n",
+        "BLAD_WININIT\n\n"
+    },
+    {
+        "If this is the first time you have seen this\n",
+        "Jesli widzisz ten ekran po raz pierwszy,\n"
+    },
+    {
+        "screen, restart CustOS. If this screen appears\n",
+        "uruchom ponownie CustOS. Jesli ekran pojawi sie\n"
+    },
+    {
+        "again, follow these steps:\n\n",
+        "ponownie, wykonaj nastepujace kroki:\n\n"
+    },
+    {
+        "Check your system configuration.\n",
+        "Sprawdz konfiguracje systemu.\n"
+    },
+    {
+        "If problems continue, restart your computer.\n\n",
+        "Jesli problem nie zniknie, uruchom komputer\nponownie.\n\n"
+    },
+    {
+        "Technical information:\n\n",
+        "Informacje techniczne:\n\n"
+    },
+    {
+        "Press any key to restart CustOS...",
+        "Nacisnij dowolny klawisz, aby uruchomic CustOS ponownie..."
+    }
+};
+
+
+// Translate known interface messages. Everything else
+// is passed unchanged to the original console printer.
+static void print_localized(char *text)
+{
+    if(polish_language)
+    {
+        for(unsigned int i = 0;
+            i < sizeof(translations) / sizeof(translations[0]);
+            i++)
+        {
+            if(same_message(text, translations[i].english))
+            {
+                console_print_raw(
+                    (char *)translations[i].polish
+                );
+
+                return;
+            }
+        }
+    }
+
+    console_print_raw(text);
+}
+
+
+// Route this source file's interface messages through
+// the translation function. Other source files are unaffected.
+#define print(text) print_localized(text)
+
+
+// ============================================================
 // KEYBOARD
 // ============================================================
 
@@ -125,14 +445,12 @@ static void shutdown_system(void)
 {
     print("\nShutting down CustOS...\n");
 
-    // Disable interrupts before shutting down.
     __asm__ volatile("cli");
 
     // Common QEMU/Bochs-compatible shutdown interfaces.
     outw_to_port(0x604, 0x2000);
     outw_to_port(0xB004, 0x2000);
 
-    // Fallback if the emulator does not support shutdown.
     while(1)
     {
         __asm__ volatile("hlt");
@@ -155,10 +473,8 @@ static void restart_system(void)
 {
     print("\nRestarting CustOS...\n");
 
-    // Disable interrupts before resetting.
     __asm__ volatile("cli");
 
-    // Wait briefly for the keyboard controller.
     for(uint32_t i = 0; i < 100000; i++)
     {
         if((inb_from_port(0x64) & 0x02) == 0)
@@ -167,10 +483,9 @@ static void restart_system(void)
         }
     }
 
-    // Request a reset through the keyboard controller.
     outb_to_port(0x64, 0xFE);
 
-    // Fallback: a triple fault normally resets x86.
+    // Fallback reset through an x86 triple fault.
     struct IDTPointer idtr = {0, 0};
 
     __asm__ volatile(
@@ -216,10 +531,8 @@ static void fake_bsod(void)
 
     print("Press any key to restart CustOS...");
 
-    // Wait for keyboard input.
     keyboard();
 
-    // Use the existing restart mechanism.
     restart_system();
 }
 
@@ -255,11 +568,12 @@ Command commands[] =
     {"color", true, false},
     {"shutdown", true, true},
     {"restart", true, true},
-    {"wininit", true, false}
+    {"wininit", true, false},
+    {"lang", true, true}
 };
 
 
-int command_count = 15;
+int command_count = 16;
 
 
 // ============================================================
@@ -313,6 +627,126 @@ bool starts(
 
 
 // ============================================================
+// SAVE AND LOAD LANGUAGE
+// ============================================================
+
+static bool save_language_setting(void)
+{
+    char value = polish_language ? 'p' : 'e';
+
+    // Create the file the first time it is used.
+    fs_create("LANG.CFG");
+
+    return fs_write(
+        "LANG.CFG",
+        &value,
+        1
+    );
+}
+
+
+static void load_language_setting(void)
+{
+    // Static storage avoids a large local stack allocation.
+    static char settings[FS_MAX_FILE_SIZE + 1];
+
+    settings[0] = 0;
+    settings[1] = 0;
+
+    if(!fs_read("LANG.CFG", settings))
+    {
+        polish_language = false;
+        return;
+    }
+
+    // This configuration file must contain exactly one byte.
+    if(settings[1] != '\0')
+    {
+        polish_language = false;
+        return;
+    }
+
+    if(settings[0] == 'p')
+    {
+        polish_language = true;
+    }
+    else
+    {
+        polish_language = false;
+    }
+}
+
+
+// ============================================================
+// SHOW CURRENT LANGUAGE
+// ============================================================
+
+static void show_language(void)
+{
+    if(polish_language)
+    {
+        print("Language: Polish\n");
+    }
+    else
+    {
+        print("Language: English\n");
+    }
+
+    print("Usage: lang en | lang pl\n");
+}
+
+
+// ============================================================
+// CHANGE LANGUAGE
+// ============================================================
+
+static void set_language_command(char *args)
+{
+    // Remove leading spaces.
+    while(*args == ' ')
+    {
+        args++;
+    }
+
+    // Remove trailing spaces.
+    int length = 0;
+
+    while(args[length])
+    {
+        length++;
+    }
+
+    while(length > 0 && args[length - 1] == ' ')
+    {
+        args[--length] = '\0';
+    }
+
+    if(equal(args, "en"))
+    {
+        polish_language = false;
+    }
+    else if(equal(args, "pl"))
+    {
+        polish_language = true;
+    }
+    else
+    {
+        print("Unknown language. Use en or pl.\n");
+        return;
+    }
+
+    if(save_language_setting())
+    {
+        print("\nLanguage changed and saved.\n");
+    }
+    else
+    {
+        print("\nLanguage changed, but saving failed.\n");
+    }
+}
+
+
+// ============================================================
 // FIND COMMAND
 // ============================================================
 
@@ -344,8 +778,7 @@ bool enabled(
     char *name
 )
 {
-    int id =
-        find_command(name);
+    int id = find_command(name);
 
     if(id < 0)
     {
@@ -382,7 +815,8 @@ void cmdlist()
         i < command_count;
         i++)
     {
-        print(commands[i].name);
+        // Print command names literally; don't translate them.
+        console_print_raw(commands[i].name);
 
         if(commands[i].protected)
         {
@@ -408,8 +842,7 @@ void enable_command(
     char *name
 )
 {
-    int id =
-        find_command(name);
+    int id = find_command(name);
 
     if(id < 0)
     {
@@ -431,8 +864,7 @@ void disable_command(
     char *name
 )
 {
-    int id =
-        find_command(name);
+    int id = find_command(name);
 
     if(id < 0)
     {
@@ -442,10 +874,7 @@ void disable_command(
 
     if(commands[id].protected)
     {
-        print(
-            "\nCannot disable protected command\n"
-        );
-
+        print("\nCannot disable protected command\n");
         return;
     }
 
@@ -560,8 +989,6 @@ static bool save_color_settings(
     settings[8] = hex[foreground];
     settings[9] = (char)('0' + background);
 
-    // Create the file on first use.
-    // If it already exists, attempt to overwrite it.
     fs_create("COLOR.CFG");
 
     return fs_write(
@@ -594,11 +1021,9 @@ static void load_color_settings(void)
 
     if(!fs_read("COLOR.CFG", settings))
     {
-        // No saved settings: use default colours.
         return;
     }
 
-    // Check the settings identifier.
     if(settings[0] != 'C' ||
        settings[1] != 'S' ||
        settings[2] != 'T' ||
@@ -611,13 +1036,11 @@ static void load_color_settings(void)
         return;
     }
 
-    // The settings file should contain ten bytes.
     if(settings[10] != '\0')
     {
         return;
     }
 
-    // Decode the foreground hexadecimal character.
     char hex[] = "0123456789ABCDEF";
 
     int foreground = -1;
@@ -631,7 +1054,6 @@ static void load_color_settings(void)
         }
     }
 
-    // Decode and validate the background character.
     if(settings[9] < '0' ||
        settings[9] > '7')
     {
@@ -744,7 +1166,9 @@ void cat(
         buffer))
     {
         print("\n");
-        print(buffer);
+
+        // File contents are data, not interface messages.
+        console_print_raw(buffer);
     }
     else
     {
@@ -771,8 +1195,7 @@ void write_file(
 
     while(1)
     {
-        char c =
-            keyboard();
+        char c = keyboard();
 
         if(c == 13)
         {
@@ -843,7 +1266,9 @@ void echo(
 )
 {
     print("\n");
-    print(text);
+
+    // Echo exactly what the user entered.
+    console_print_raw(text);
 }
 
 
@@ -947,6 +1372,22 @@ void run_command(
         }
     }
 
+    else if(starts(input, "lang "))
+    {
+        if(enabled("lang"))
+        {
+            set_language_command(input + 5);
+        }
+    }
+
+    else if(equal(input, "lang"))
+    {
+        if(enabled("lang"))
+        {
+            show_language();
+        }
+    }
+
     else if(equal(input, "shutdown"))
     {
         if(enabled("shutdown"))
@@ -1036,13 +1477,6 @@ void shell()
 // ============================================================
 // KERNEL ENTRY
 // ============================================================
-//
-// This is the actual installed CustOS kernel.
-//
-// The linker places this function at 0x100000.
-// The BIOS bootloader loads kernel.bin there and
-// jumps directly to it.
-// ============================================================
 
 __attribute__((section(".text.kernel_main")))
 void kernel_main()
@@ -1061,6 +1495,7 @@ void kernel_main()
 
     if(!fs_mount())
     {
+        // Language settings can't be loaded if mounting fails.
         print("Filesystem mount failed!\n");
 
         while(1)
@@ -1068,7 +1503,8 @@ void kernel_main()
         }
     }
 
-    // Restore saved colours after mounting the filesystem.
+    // Load language and colours after mounting the filesystem.
+    load_language_setting();
     load_color_settings();
 
     print("Filesystem mounted!\n");
