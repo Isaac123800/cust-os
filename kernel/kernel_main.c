@@ -126,54 +126,22 @@ static const Translation translations[] =
         "\nKolory tekstu (0-15):\n",
         "\nCouleurs du texte (0-15) :\n"
     },
-    {
-        "0 Black\n", "0 Czarny\n", "0 Noir\n"
-    },
-    {
-        "1 Blue\n", "1 Niebieski\n", "1 Bleu\n"
-    },
-    {
-        "2 Green\n", "2 Zielony\n", "2 Vert\n"
-    },
-    {
-        "3 Cyan\n", "3 Turkusowy\n", "3 Cyan\n"
-    },
-    {
-        "4 Red\n", "4 Czerwony\n", "4 Rouge\n"
-    },
-    {
-        "5 Magenta\n", "5 Magenta\n", "5 Magenta\n"
-    },
-    {
-        "6 Brown\n", "6 Brazowy\n", "6 Marron\n"
-    },
-    {
-        "7 Light grey\n", "7 Jasnoszary\n", "7 Gris clair\n"
-    },
-    {
-        "8 Dark grey\n", "8 Ciemnoszary\n", "8 Gris fonce\n"
-    },
-    {
-        "9 Light blue\n", "9 Jasnoniebieski\n", "9 Bleu clair\n"
-    },
-    {
-        "10 Light green\n", "10 Jasnozielony\n", "10 Vert clair\n"
-    },
-    {
-        "11 Light cyan\n", "11 Jasnoturkusowy\n", "11 Cyan clair\n"
-    },
-    {
-        "12 Light red\n", "12 Jasnoczerwony\n", "12 Rouge clair\n"
-    },
-    {
-        "13 Light magenta\n", "13 Jasna magenta\n", "13 Magenta clair\n"
-    },
-    {
-        "14 Yellow\n", "14 Zolty\n", "14 Jaune\n"
-    },
-    {
-        "15 White\n", "15 Bialy\n", "15 Blanc\n"
-    },
+    {"0 Black\n", "0 Czarny\n", "0 Noir\n"},
+    {"1 Blue\n", "1 Niebieski\n", "1 Bleu\n"},
+    {"2 Green\n", "2 Zielony\n", "2 Vert\n"},
+    {"3 Cyan\n", "3 Turkusowy\n", "3 Cyan\n"},
+    {"4 Red\n", "4 Czerwony\n", "4 Rouge\n"},
+    {"5 Magenta\n", "5 Magenta\n", "5 Magenta\n"},
+    {"6 Brown\n", "6 Brazowy\n", "6 Marron\n"},
+    {"7 Light grey\n", "7 Jasnoszary\n", "7 Gris clair\n"},
+    {"8 Dark grey\n", "8 Ciemnoszary\n", "8 Gris fonce\n"},
+    {"9 Light blue\n", "9 Jasnoniebieski\n", "9 Bleu clair\n"},
+    {"10 Light green\n", "10 Jasnozielony\n", "10 Vert clair\n"},
+    {"11 Light cyan\n", "11 Jasnoturkusowy\n", "11 Cyan clair\n"},
+    {"12 Light red\n", "12 Jasnoczerwon y\n", "12 Rouge clair\n"},
+    {"13 Light magenta\n", "13 Jasna magenta\n", "13 Magenta clair\n"},
+    {"14 Yellow\n", "14 Zolty\n", "14 Jaune\n"},
+    {"15 White\n", "15 Bialy\n", "15 Blanc\n"},
     {
         "\nBackground colours: 0-7\n",
         "\nKolory tla: 0-7\n",
@@ -390,13 +358,19 @@ static void print_localized(char *text)
         }
     }
 
-    // Messages not in the translation table stay unchanged.
     console_print_raw(text);
 }
 
 
 // Translate messages printed in this source file only.
 #define print(text) print_localized(text)
+
+
+// Special values returned for extended keyboard keys.
+#define KEY_UP 1
+#define KEY_DOWN 2
+
+#define COMMAND_HISTORY_SIZE 10
 
 
 // ============================================================
@@ -407,6 +381,8 @@ char keyboard()
 {
     unsigned char status;
     unsigned char key;
+
+    static bool extended = false;
 
     char map[] =
     {
@@ -451,6 +427,38 @@ char keyboard()
                 "inb $0x60, %0"
                 : "=a"(key)
             );
+
+            // Extended scan-code prefix.
+            if(key == 0xE0)
+            {
+                extended = true;
+                continue;
+            }
+
+            if(extended)
+            {
+                extended = false;
+
+                // Arrow-key press codes.
+                if(key == 0x48)
+                {
+                    return KEY_UP;
+                }
+
+                if(key == 0x50)
+                {
+                    return KEY_DOWN;
+                }
+
+                // Ignore other extended keys.
+                continue;
+            }
+
+            // Ignore ordinary key-release codes.
+            if(key & 0x80)
+            {
+                continue;
+            }
 
             if(key < sizeof(map))
             {
@@ -515,7 +523,6 @@ static void shutdown_system(void)
 
     __asm__ volatile("cli");
 
-    // Common QEMU/Bochs-compatible shutdown interfaces.
     outw_to_port(0x604, 0x2000);
     outw_to_port(0xB004, 0x2000);
 
@@ -576,7 +583,6 @@ static void restart_system(void)
 
 static void fake_bsod(void)
 {
-    // White text on a blue background.
     console_set_color(15, 1);
     clear();
 
@@ -595,7 +601,6 @@ static void fake_bsod(void)
 
     print("Technical information:\n\n");
 
-    // Preserve the custom stop code in every language.
     console_print_raw("*** STOP: CUSTOS_NOT_WINDOWS\n\n");
 
     print("Press any key to restart CustOS...");
@@ -702,7 +707,6 @@ bool starts(
 
 static bool save_language_setting(void)
 {
-    // e = English, p = Polish, f = French.
     fs_create("LANG.CFG");
 
     return fs_write(
@@ -726,7 +730,6 @@ static void load_language_setting(void)
         return;
     }
 
-    // The configuration must contain exactly one byte.
     if(settings[1] != '\0')
     {
         current_language = 'e';
@@ -1283,6 +1286,12 @@ void write_file(
     {
         char c = keyboard();
 
+        // Don't write arrow-key codes into the file.
+        if(c == KEY_UP || c == KEY_DOWN)
+        {
+            continue;
+        }
+
         if(c == 13)
         {
             break;
@@ -1514,12 +1523,70 @@ void run_command(
 
 
 // ============================================================
-// SHELL
+// COMMAND HISTORY HELPERS
+// ============================================================
+
+static void copy_command(
+    char *destination,
+    const char *source
+)
+{
+    int i = 0;
+
+    while(source[i] && i < 127)
+    {
+        destination[i] = source[i];
+        i++;
+    }
+
+    destination[i] = '\0';
+}
+
+
+static void replace_input_line(
+    char *input,
+    int *pos,
+    const char *replacement
+)
+{
+    // Erase the current command from the screen.
+    while(*pos > 0)
+    {
+        (*pos)--;
+
+        backspace();
+    }
+
+    // Display the selected command.
+    int i = 0;
+
+    while(replacement[i] && i < 127)
+    {
+        input[i] = replacement[i];
+
+        putchar(input[i]);
+
+        i++;
+    }
+
+    input[i] = '\0';
+
+    *pos = i;
+}
+
+
+// ============================================================
+// SHELL WITH COMMAND HISTORY
 // ============================================================
 
 void shell()
 {
     char input[128];
+
+    // Ten previous commands, kept in RAM.
+    char history[COMMAND_HISTORY_SIZE][128];
+
+    int history_count = 0;
 
     while(1)
     {
@@ -1527,15 +1594,102 @@ void shell()
 
         int pos = 0;
 
+        input[0] = '\0';
+
+        // One position after the newest command.
+        int history_position = history_count;
+
         while(1)
         {
             char c = keyboard();
 
+            // Up: move to an older command.
+            if(c == KEY_UP)
+            {
+                if(history_count > 0 &&
+                   history_position > 0)
+                {
+                    history_position--;
+
+                    replace_input_line(
+                        input,
+                        &pos,
+                        history[history_position]
+                    );
+                }
+
+                continue;
+            }
+
+            // Down: move to a newer command.
+            if(c == KEY_DOWN)
+            {
+                if(history_position < history_count - 1)
+                {
+                    history_position++;
+
+                    replace_input_line(
+                        input,
+                        &pos,
+                        history[history_position]
+                    );
+                }
+                else if(history_position < history_count)
+                {
+                    // Down past the newest command
+                    // returns to an empty input line.
+                    history_position = history_count;
+
+                    replace_input_line(
+                        input,
+                        &pos,
+                        ""
+                    );
+                }
+
+                continue;
+            }
+
             if(c == 13)
             {
-                input[pos] = 0;
+                input[pos] = '\0';
 
                 print("\n");
+
+                // Save non-empty commands, but avoid a
+                // duplicate of the immediately previous one.
+                if(pos > 0 &&
+                   (history_count == 0 ||
+                    !equal(input, history[history_count - 1])))
+                {
+                    if(history_count < COMMAND_HISTORY_SIZE)
+                    {
+                        copy_command(
+                            history[history_count],
+                            input
+                        );
+
+                        history_count++;
+                    }
+                    else
+                    {
+                        // Discard the oldest command.
+                        for(int h = 1;
+                            h < COMMAND_HISTORY_SIZE;
+                            h++)
+                        {
+                            copy_command(
+                                history[h - 1],
+                                history[h]
+                            );
+                        }
+
+                        copy_command(
+                            history[COMMAND_HISTORY_SIZE - 1],
+                            input
+                        );
+                    }
+                }
 
                 run_command(input);
 
@@ -1548,6 +1702,8 @@ void shell()
                 {
                     pos--;
 
+                    input[pos] = '\0';
+
                     backspace();
                 }
 
@@ -1559,6 +1715,7 @@ void shell()
                 if(pos < 127)
                 {
                     input[pos++] = c;
+                    input[pos] = '\0';
 
                     putchar(c);
                 }
