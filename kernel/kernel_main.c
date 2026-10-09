@@ -15,16 +15,18 @@
 // LANGUAGE SYSTEM
 // ============================================================
 
-static bool polish_language = false;
+// e = English, p = Polish, f = French
+static char current_language = 'e';
 
 typedef struct
 {
     const char *english;
     const char *polish;
+    const char *french;
 } Translation;
 
 
-// Call the original console printer without translation.
+// Print without translating.
 static void console_print_raw(char *text)
 {
     print(text);
@@ -51,283 +53,364 @@ static bool same_message(
 }
 
 
+// ============================================================
+// TRANSLATIONS
+// ============================================================
+
 static const Translation translations[] =
 {
     // Shutdown and restart
     {
         "\nShutting down CustOS...\n",
-        "\nZamykanie CustOS...\n"
+        "\nZamykanie CustOS...\n",
+        "\nArret de CustOS...\n"
     },
     {
         "\nRestarting CustOS...\n",
-        "\nPonowne uruchamianie CustOS...\n"
+        "\nPonowne uruchamianie CustOS...\n",
+        "\nRedemarrage de CustOS...\n"
     },
 
     // Credits and command list
     {
         "\nMade By:\n",
-        "\nAutorzy:\n"
+        "\nAutorzy:\n",
+        "\nCree par :\n"
     },
     {
         "\nCommands:\n",
-        "\nPolecenia:\n"
+        "\nPolecenia:\n",
+        "\nCommandes :\n"
     },
     {
         " Protected\n",
-        " Chronione\n"
+        " Chronione\n",
+        " Protege\n"
     },
     {
         " Enabled\n",
-        " Wlaczone\n"
+        " Wlaczone\n",
+        " Active\n"
     },
     {
         " Disabled\n",
-        " Wylaczone\n"
+        " Wylaczone\n",
+        " Desactive\n"
     },
 
     // General command messages
     {
         "\nCommand not found\n",
-        "\nNie znaleziono polecenia\n"
+        "\nNie znaleziono polecenia\n",
+        "\nCommande introuvable\n"
     },
     {
         "\nCommand enabled\n",
-        "\nPolecenie wlaczone\n"
+        "\nPolecenie wlaczone\n",
+        "\nCommande activee\n"
     },
     {
         "\nCannot disable protected command\n",
-        "\nNie mozna wylaczyc chronionego polecenia\n"
+        "\nNie mozna wylaczyc chronionego polecenia\n",
+        "\nImpossible de desactiver une commande protegee\n"
     },
     {
         "\nCommand disabled\n",
-        "\nPolecenie wylaczone\n"
+        "\nPolecenie wylaczone\n",
+        "\nCommande desactivee\n"
     },
 
     // Colour command
     {
         "\nForeground colours (0-15):\n",
-        "\nKolory tekstu (0-15):\n"
+        "\nKolory tekstu (0-15):\n",
+        "\nCouleurs du texte (0-15) :\n"
     },
     {
         "0 Black\n",
-        "0 Czarny\n"
+        "0 Czarny\n",
+        "0 Noir\n"
     },
     {
         "1 Blue\n",
-        "1 Niebieski\n"
+        "1 Niebieski\n",
+        "1 Bleu\n"
     },
     {
         "2 Green\n",
-        "2 Zielony\n"
+        "2 Zielony\n",
+        "2 Vert\n"
     },
     {
         "3 Cyan\n",
-        "3 Turkusowy\n"
+        "3 Turkusowy\n",
+        "3 Cyan\n"
     },
     {
         "4 Red\n",
-        "4 Czerwony\n"
+        "4 Czerwony\n",
+        "4 Rouge\n"
     },
     {
+        "5 Magenta\n",
         "5 Magenta\n",
         "5 Magenta\n"
     },
     {
         "6 Brown\n",
-        "6 Brazowy\n"
+        "6 Brazowy\n",
+        "6 Marron\n"
     },
     {
         "7 Light grey\n",
-        "7 Jasnoszary\n"
+        "7 Jasnoszary\n",
+        "7 Gris clair\n"
     },
     {
         "8 Dark grey\n",
-        "8 Ciemnoszary\n"
+        "8 Ciemnoszary\n",
+        "8 Gris fonce\n"
     },
     {
         "9 Light blue\n",
-        "9 Jasnoniebieski\n"
+        "9 Jasnoniebieski\n",
+        "9 Bleu clair\n"
     },
     {
         "10 Light green\n",
-        "10 Jasnozielony\n"
+        "10 Jasnozielony\n",
+        "10 Vert clair\n"
     },
     {
         "11 Light cyan\n",
-        "11 Jasnoturkusowy\n"
+        "11 Jasnoturkusowy\n",
+        "11 Cyan clair\n"
     },
     {
         "12 Light red\n",
-        "12 Jasnoczerwony\n"
+        "12 Jasnoczerwony\n",
+        "12 Rouge clair\n"
     },
     {
         "13 Light magenta\n",
-        "13 Jasna magenta\n"
+        "13 Jasna magenta\n",
+        "13 Magenta clair\n"
     },
     {
         "14 Yellow\n",
-        "14 Zolty\n"
+        "14 Zolty\n",
+        "14 Jaune\n"
     },
     {
         "15 White\n",
-        "15 Bialy\n"
+        "15 Bialy\n",
+        "15 Blanc\n"
     },
     {
         "\nBackground colours: 0-7\n",
-        "\nKolory tla: 0-7\n"
+        "\nKolory tla: 0-7\n",
+        "\nCouleurs d'arriere-plan : 0-7\n"
     },
     {
         "Usage: color <foreground> <background>\n",
-        "Uzycie: color <tekst> <tlo>\n"
+        "Uzycie: color <tekst> <tlo>\n",
+        "Utilisation : color <texte> <fond>\n"
     },
     {
         "Example: color 15 0\n",
-        "Przyklad: color 15 0\n"
+        "Przyklad: color 15 0\n",
+        "Exemple : color 15 0\n"
     },
     {
         "\nUsage: color <foreground 0-15> <background 0-7>\n",
-        "\nUzycie: color <tekst 0-15> <tlo 0-7>\n"
+        "\nUzycie: color <tekst 0-15> <tlo 0-7>\n",
+        "\nUtilisation : color <texte 0-15> <fond 0-7>\n"
     },
     {
         "\nConsole colours changed and saved.\n",
-        "\nKolory konsoli zmienione i zapisane.\n"
+        "\nKolory konsoli zmienione i zapisane.\n",
+        "\nCouleurs de la console modifiees et enregistrees.\n"
     },
     {
         "\nColours changed, but saving failed.\n",
-        "\nKolory zmienione, ale zapis sie nie powiodl.\n"
+        "\nKolory zmienione, ale zapis sie nie powiodl.\n",
+        "\nCouleurs modifiees, mais echec de l'enregistrement.\n"
     },
 
     // Filesystem messages
     {
         "\nFile created\n",
-        "\nPlik utworzony\n"
+        "\nPlik utworzony\n",
+        "\nFichier cree\n"
     },
     {
         "\nCould not create file\n",
-        "\nNie mozna utworzyc pliku\n"
+        "\nNie mozna utworzyc pliku\n",
+        "\nImpossible de creer le fichier\n"
     },
     {
         "\nFile not found\n",
-        "\nNie znaleziono pliku\n"
+        "\nNie znaleziono pliku\n",
+        "\nFichier introuvable\n"
     },
     {
         "\nEnter text:\n",
-        "\nWpisz tekst:\n"
+        "\nWpisz tekst:\n",
+        "\nEntrez le texte :\n"
     },
     {
         "\nSaved\n",
-        "\nZapisano\n"
+        "\nZapisano\n",
+        "\nEnregistre\n"
     },
     {
         "\nWrite failed\n",
-        "\nBlad zapisu\n"
+        "\nBlad zapisu\n",
+        "\nEchec de l'ecriture\n"
     },
     {
         "\nDeleted\n",
-        "\nUsunieto\n"
+        "\nUsunieto\n",
+        "\nSupprime\n"
     },
 
     // Language command
     {
         "Language: English\n",
-        "Jezyk: angielski\n"
+        "Jezyk: angielski\n",
+        "Langue : anglais\n"
     },
     {
         "Language: Polish\n",
-        "Jezyk: polski\n"
+        "Jezyk: polski\n",
+        "Langue : polonais\n"
     },
     {
-        "Usage: lang en | lang pl\n",
-        "Uzycie: lang en | lang pl\n"
+        "Language: French\n",
+        "Jezyk: francuski\n",
+        "Langue : francais\n"
     },
     {
-        "Unknown language. Use en or pl.\n",
-        "Nieznany jezyk. Uzyj en lub pl.\n"
+        "Usage: lang en | lang pl | lang fr\n",
+        "Uzycie: lang en | lang pl | lang fr\n",
+        "Utilisation : lang en | lang pl | lang fr\n"
+    },
+    {
+        "Unknown language. Use en, pl or fr.\n",
+        "Nieznany jezyk. Uzyj en, pl lub fr.\n",
+        "Langue inconnue. Utilisez en, pl ou fr.\n"
     },
     {
         "\nLanguage changed and saved.\n",
-        "\nJezyk zmieniony i zapisany.\n"
+        "\nJezyk zmieniony i zapisany.\n",
+        "\nLangue modifiee et enregistree.\n"
     },
     {
         "\nLanguage changed, but saving failed.\n",
-        "\nJezyk zmieniony, ale zapis sie nie powiodl.\n"
+        "\nJezyk zmieniony, ale zapis sie nie powiodl.\n",
+        "\nLangue modifiee, mais echec de l'enregistrement.\n"
     },
 
     // Fake Windows-style BSOD
     {
         "A problem has been detected in CustOS.\n",
-        "W systemie CustOS wykryto problem.\n"
+        "W systemie CustOS wykryto problem.\n",
+        "Un probleme a ete detecte dans CustOS.\n"
     },
     {
         "CustOS has been shut down to prevent damage\n",
-        "CustOS zostal zatrzymany, aby zapobiec\n"
+        "CustOS zostal zatrzymany, aby zapobiec\n",
+        "CustOS a ete arrete pour eviter d'endommager\n"
     },
     {
         "to your computer.\n\n",
-        "uszkodzeniu komputera.\n\n"
+        "uszkodzeniu komputera.\n\n",
+        "votre ordinateur.\n\n"
     },
     {
         "WININIT_ERROR\n\n",
-        "BLAD_WININIT\n\n"
+        "BLAD_WININIT\n\n",
+        "ERREUR_WININIT\n\n"
     },
     {
         "If this is the first time you have seen this\n",
-        "Jesli widzisz ten ekran po raz pierwszy,\n"
+        "Jesli widzisz ten ekran po raz pierwszy,\n",
+        "Si c'est la premiere fois que vous voyez cet\n"
     },
     {
         "screen, restart CustOS. If this screen appears\n",
-        "uruchom ponownie CustOS. Jesli ekran pojawi sie\n"
+        "uruchom ponownie CustOS. Jesli ekran pojawi sie\n",
+        "ecran, redemarrez CustOS. Si cet ecran apparait\n"
     },
     {
         "again, follow these steps:\n\n",
-        "ponownie, wykonaj nastepujace kroki:\n\n"
+        "ponownie, wykonaj nastepujace kroki:\n\n",
+        "a nouveau, suivez ces etapes :\n\n"
     },
     {
         "Check your system configuration.\n",
-        "Sprawdz konfiguracje systemu.\n"
+        "Sprawdz konfiguracje systemu.\n",
+        "Verifiez la configuration de votre systeme.\n"
     },
     {
         "If problems continue, restart your computer.\n\n",
-        "Jesli problem nie zniknie, uruchom komputer\nponownie.\n\n"
+        "Jesli problem nie zniknie, uruchom komputer\nponownie.\n\n",
+        "Si le probleme persiste, redemarrez votre ordinateur.\n\n"
     },
     {
         "Technical information:\n\n",
-        "Informacje techniczne:\n\n"
+        "Informacje techniczne:\n\n",
+        "Informations techniques :\n\n"
     },
     {
         "Press any key to restart CustOS...",
-        "Nacisnij dowolny klawisz, aby uruchomic CustOS ponownie..."
+        "Nacisnij dowolny klawisz, aby uruchomic CustOS ponownie...",
+        "Appuyez sur une touche pour redemarrer CustOS..."
     }
 };
 
 
-// Translate known interface messages. Everything else
-// is passed unchanged to the original console printer.
+// ============================================================
+// TRANSLATED PRINTER
+// ============================================================
+
 static void print_localized(char *text)
 {
-    if(polish_language)
+    for(unsigned int i = 0;
+        i < sizeof(translations) / sizeof(translations[0]);
+        i++)
     {
-        for(unsigned int i = 0;
-            i < sizeof(translations) / sizeof(translations[0]);
-            i++)
+        if(same_message(text, translations[i].english))
         {
-            if(same_message(text, translations[i].english))
+            if(current_language == 'p')
             {
                 console_print_raw(
                     (char *)translations[i].polish
                 );
-
-                return;
             }
+            else if(current_language == 'f')
+            {
+                console_print_raw(
+                    (char *)translations[i].french
+                );
+            }
+            else
+            {
+                console_print_raw(
+                    (char *)translations[i].english
+                );
+            }
+
+            return;
         }
     }
 
+    // Messages not in the translation table stay unchanged.
     console_print_raw(text);
 }
 
 
-// Route this source file's interface messages through
-// the translation function. Other source files are unaffected.
+// This affects print() calls in this source file only.
 #define print(text) print_localized(text)
 
 
@@ -527,7 +610,8 @@ static void fake_bsod(void)
 
     print("Technical information:\n\n");
 
-    print("*** STOP: CUSTOS_NOT_WINDOWS\n\n");
+    // Keep the custom stop code unchanged in every language.
+    console_print_raw("*** STOP: CUSTOS_NOT_WINDOWS\n\n");
 
     print("Press any key to restart CustOS...");
 
@@ -632,14 +716,12 @@ bool starts(
 
 static bool save_language_setting(void)
 {
-    char value = polish_language ? 'p' : 'e';
-
-    // Create the file the first time it is used.
+    // e = English, p = Polish, f = French.
     fs_create("LANG.CFG");
 
     return fs_write(
         "LANG.CFG",
-        &value,
+        &current_language,
         1
     );
 }
@@ -647,7 +729,6 @@ static bool save_language_setting(void)
 
 static void load_language_setting(void)
 {
-    // Static storage avoids a large local stack allocation.
     static char settings[FS_MAX_FILE_SIZE + 1];
 
     settings[0] = 0;
@@ -655,24 +736,26 @@ static void load_language_setting(void)
 
     if(!fs_read("LANG.CFG", settings))
     {
-        polish_language = false;
+        current_language = 'e';
         return;
     }
 
-    // This configuration file must contain exactly one byte.
+    // The configuration must contain exactly one byte.
     if(settings[1] != '\0')
     {
-        polish_language = false;
+        current_language = 'e';
         return;
     }
 
-    if(settings[0] == 'p')
+    if(settings[0] == 'e' ||
+       settings[0] == 'p' ||
+       settings[0] == 'f')
     {
-        polish_language = true;
+        current_language = settings[0];
     }
     else
     {
-        polish_language = false;
+        current_language = 'e';
     }
 }
 
@@ -683,16 +766,20 @@ static void load_language_setting(void)
 
 static void show_language(void)
 {
-    if(polish_language)
+    if(current_language == 'p')
     {
         print("Language: Polish\n");
+    }
+    else if(current_language == 'f')
+    {
+        print("Language: French\n");
     }
     else
     {
         print("Language: English\n");
     }
 
-    print("Usage: lang en | lang pl\n");
+    print("Usage: lang en | lang pl | lang fr\n");
 }
 
 
@@ -723,15 +810,19 @@ static void set_language_command(char *args)
 
     if(equal(args, "en"))
     {
-        polish_language = false;
+        current_language = 'e';
     }
     else if(equal(args, "pl"))
     {
-        polish_language = true;
+        current_language = 'p';
+    }
+    else if(equal(args, "fr"))
+    {
+        current_language = 'f';
     }
     else
     {
-        print("Unknown language. Use en or pl.\n");
+        print("Unknown language. Use en, pl or fr.\n");
         return;
     }
 
@@ -815,7 +906,7 @@ void cmdlist()
         i < command_count;
         i++)
     {
-        // Print command names literally; don't translate them.
+        // Keep command names in English.
         console_print_raw(commands[i].name);
 
         if(commands[i].protected)
@@ -1495,7 +1586,6 @@ void kernel_main()
 
     if(!fs_mount())
     {
-        // Language settings can't be loaded if mounting fails.
         print("Filesystem mount failed!\n");
 
         while(1)
@@ -1503,7 +1593,7 @@ void kernel_main()
         }
     }
 
-    // Load language and colours after mounting the filesystem.
+    // Load saved language and colours after mounting.
     load_language_setting();
     load_color_settings();
 
