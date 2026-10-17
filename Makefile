@@ -6,8 +6,9 @@ AS = nasm
 LD = ld
 OBJCOPY = objcopy
 
-CFLAGS = -m32 -ffreestanding -fno-pie -fno-pic 
-	-fno-stack-protector -fno-asynchronous-unwind-tables 
+
+CFLAGS = -m32 -ffreestanding -fno-pie -fno-pic \
+	-fno-stack-protector -fno-asynchronous-unwind-tables \
 	-ffunction-sections -Iinclude -I.
 
 LDFLAGS = -m elf_i386
