@@ -6,8 +6,8 @@ AS = nasm
 LD = ld
 OBJCOPY = objcopy
 
-CFLAGS = -m32 -ffreestanding -fno-pie -fno-pic \
-	-fno-stack-protector -fno-asynchronous-unwind-tables \
+CFLAGS = -m32 -ffreestanding -fno-pie -fno-pic 
+	-fno-stack-protector -fno-asynchronous-unwind-tables 
 	-ffunction-sections -Iinclude -I.
 
 LDFLAGS = -m elf_i386
@@ -15,7 +15,6 @@ LDFLAGS = -m elf_i386
 
 all:
 	mkdir -p build
-
 
 	# ========================================================
 	# SHARED CONSOLE
@@ -25,7 +24,6 @@ all:
 		-c kernel/console.c \
 		-o build/console.o
 
-
 	# ========================================================
 	# NORMAL CUSTOS KERNEL
 	# ========================================================
@@ -34,10 +32,7 @@ all:
 		-c kernel/kernel_main.c \
 		-o build/kernel_main.o
 
-	# --------------------------------------------------------
-	# CustC interpreter
-	# --------------------------------------------------------
-
+	# CustC interpreter (normal kernel only)
 	$(CC) $(CFLAGS) \
 		-c kernel/custc.c \
 		-o build/custc.o
@@ -73,7 +68,6 @@ all:
 		build/filesystem.o \
 		-o build/kernel.elf
 
-
 	# --------------------------------------------------------
 	# Raw installed kernel
 	# --------------------------------------------------------
@@ -81,7 +75,6 @@ all:
 	$(OBJCOPY) -O binary \
 		build/kernel.elf \
 		build/kernel.bin
-
 
 	# --------------------------------------------------------
 	# Calculate installed kernel size
@@ -96,7 +89,6 @@ all:
 		exit 1; \
 	fi
 
-
 	# --------------------------------------------------------
 	# Build BIOS bootloader using exact kernel size
 	# --------------------------------------------------------
@@ -109,7 +101,6 @@ all:
 		boot/bootloader.asm \
 		-o build/bootloader.bin
 
-
 	# ========================================================
 	# INSTALLER KERNEL
 	# ========================================================
@@ -118,11 +109,9 @@ all:
 		boot/multiboot.asm \
 		-o build/multiboot.o
 
-
 	$(CC) $(CFLAGS) \
 		-c kernel/kernel_installer.c \
 		-o build/kernel_installer.o
-
 
 	# --------------------------------------------------------
 	# Installer support
@@ -139,7 +128,6 @@ all:
 	$(CC) $(CFLAGS) \
 		-c installer/grub_install.c \
 		-o build/grub_install.o
-
 
 	# --------------------------------------------------------
 	# Installer drivers
@@ -161,7 +149,6 @@ all:
 		-c drivers/cdrom.c \
 		-o build/cdrom.o
 
-
 	# --------------------------------------------------------
 	# Installer filesystem
 	# --------------------------------------------------------
@@ -173,7 +160,6 @@ all:
 	$(CC) $(CFLAGS) \
 		-c fs/iso9660.c \
 		-o build/iso9660.o
-
 
 	# --------------------------------------------------------
 	# Link installer kernel
@@ -195,35 +181,28 @@ all:
 		build/grub_install.o \
 		-o build/installer.elf
 
-
 	# ========================================================
 	# CREATE ISO
 	# ========================================================
 
 	rm -rf iso
-
 	mkdir -p iso/boot/grub
-
 
 	# Installer kernel
 	cp build/installer.elf \
 		iso/boot/kernel.bin
 
-
 	# Normal kernel copied to disk by installer
 	cp build/kernel.bin \
 		iso/KERNEL.BIN
-
 
 	# Custom BIOS bootloader
 	cp build/bootloader.bin \
 		iso/BOOTLOADER.BIN
 
-
 	# GRUB configuration
 	cp grub/grub.cfg \
 		iso/boot/grub/grub.cfg
-
 
 	# ========================================================
 	# BUILD ISO
