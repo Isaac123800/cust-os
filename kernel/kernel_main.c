@@ -6,6 +6,7 @@
 
 #include "include/types.h"
 #include "include/console.h"
+#include "include/custc.h"
 
 #include "drivers/disk.h"
 #include "fs/filesystem.h"
@@ -635,6 +636,7 @@ Command commands[] =
     {"ls", true, false},
     {"rm", true, false},
     {"color", true, false},
+    {"run", true, false},
     {"shutdown", true, true},
     {"restart", true, true},
     {"wininit", true, false},
@@ -643,7 +645,7 @@ Command commands[] =
 };
 
 
-int command_count = 17;
+int command_count = 18;
 
 
 // ============================================================
@@ -1346,6 +1348,34 @@ void remove_file(
 
 
 // ============================================================
+// RUN CUSTC PROGRAM
+// ============================================================
+
+static void run_file(char *name)
+{
+    // A CustC source file can be up to 65536 bytes.
+    static char buffer[FS_MAX_FILE_SIZE + 1];
+
+    if (fs_find(name) < 0)
+    {
+        print("\nFile not found\n");
+        return;
+    }
+
+    if (!fs_read(name, buffer))
+    {
+        print("\nCould not read program\n");
+        return;
+    }
+
+    print("\n");
+
+    // Interpret the source code in the file.
+    custc_run(buffer);
+}
+
+
+// ============================================================
 // ECHO
 // ============================================================
 
@@ -1433,6 +1463,14 @@ void run_command(
         if(enabled("cat"))
         {
             cat(input + 4);
+        }
+    }
+
+    else if(starts(input, "run "))
+    {
+        if(enabled("run"))
+        {
+            run_file(input + 4);
         }
     }
 
