@@ -34,6 +34,14 @@ all:
 		-c kernel/kernel_main.c \
 		-o build/kernel_main.o
 
+	# --------------------------------------------------------
+	# CustC interpreter
+	# --------------------------------------------------------
+
+	$(CC) $(CFLAGS) \
+		-c kernel/custc.c \
+		-o build/custc.o
+
 	$(CC) $(CFLAGS) \
 		-c drivers/io.c \
 		-o build/io.o
@@ -57,6 +65,7 @@ all:
 	$(LD) $(LDFLAGS) \
 		-T linker.ld \
 		build/kernel_main.o \
+		build/custc.o \
 		build/console.o \
 		build/io.o \
 		build/ata.o \
@@ -232,4 +241,3 @@ clean:
 
 
 .PHONY: all clean
-
