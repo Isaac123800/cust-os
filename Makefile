@@ -50,11 +50,6 @@ all:
 		-c fs/filesystem.c \
 		-o build/filesystem.o
 
-	$(CC) $(CFLAGS) \
-	    -c drivers/vga.c \
-	    -o build/vga.o
-
-
 	# --------------------------------------------------------
 	# Link installed kernel
 	# --------------------------------------------------------
