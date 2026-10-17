@@ -6,6 +6,7 @@
 
 #include "include/types.h"
 #include "include/console.h"
+#include "include/custc.h"
 
 #include "drivers/disk.h"
 #include "fs/filesystem.h"
